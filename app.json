@@ -1,0 +1,46 @@
+{
+  "expo": {
+    "name": "RemateVoley",
+    "slug": "remate-voley",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "rematevoley",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": false,
+    "splash": {
+      "backgroundColor": "#0b1120",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "net.wonderbits.rematevoley",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "RemateVoley usa Bluetooth para conectar con los sensores de muñeca y torso.",
+        "NSBluetoothPeripheralUsageDescription": "RemateVoley usa Bluetooth para recibir datos de los sensores.",
+        "UIBackgroundModes": ["bluetooth-central"]
+      }
+    },
+    "android": {
+      "package": "net.wonderbits.rematevoley",
+      "permissions": [
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": true,
+          "modes": ["central"],
+          "bluetoothAlwaysPermission": "RemateVoley usa Bluetooth para conectar con los sensores."
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}
