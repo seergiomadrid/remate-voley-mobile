@@ -1,0 +1,80 @@
+name: iOS Build (sin firmar – AltStore)
+
+on:
+  workflow_dispatch:  # Se lanza manualmente desde GitHub Actions
+
+jobs:
+  build:
+    runs-on: macos-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout app móvil
+        uses: actions/checkout@v4
+        with:
+          path: mobile
+
+      - name: Checkout librería core
+        uses: actions/checkout@v4
+        with:
+          repository: seergiomadrid/Remate-Voley
+          path: core-monorepo
+
+      # mobile/package.json usa file:../core → necesita core/ como hermano de mobile/
+      - name: Copiar core al lugar correcto
+        run: cp -r core-monorepo/core core
+
+      - name: Configurar Node 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Instalar dependencias de core
+        working-directory: core
+        run: npm ci
+
+      - name: Instalar dependencias de la app
+        working-directory: mobile
+        run: npm ci
+
+      - name: Instalar Expo CLI
+        run: npm install -g @expo/cli
+
+      - name: Generar proyecto iOS nativo (prebuild)
+        working-directory: mobile
+        run: npx expo prebuild --platform ios --clean --no-install
+
+      - name: Instalar CocoaPods
+        working-directory: mobile/ios
+        run: pod install
+
+      - name: Compilar archivo sin firmar
+        working-directory: mobile/ios
+        run: |
+          xcodebuild archive \
+            -workspace RemateVoley.xcworkspace \
+            -scheme RemateVoley \
+            -configuration Release \
+            -archivePath "$RUNNER_TEMP/RemateVoley.xcarchive" \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            -destination "generic/platform=iOS" \
+            | xcpretty || true
+
+      - name: Empaquetar como .ipa
+        run: |
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -r "$RUNNER_TEMP/RemateVoley.xcarchive/Products/Applications/RemateVoley.app" \
+            "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -r "RemateVoley-unsigned.ipa" Payload/
+
+      - name: Subir .ipa como artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: RemateVoley-unsigned
+          path: ${{ runner.temp }}/RemateVoley-unsigned.ipa
+          retention-days: 14
