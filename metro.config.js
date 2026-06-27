@@ -1,17 +1,5 @@
-// Metro configurado para monorepo: permite importar @remate-voley/core (../core)
-// como código fuente TypeScript compartido.
+// core/ vive dentro de este repo (mobile/core), así que no hace falta
+// configuración especial de monorepo. Metro lo resuelve vía el alias @core.
 const { getDefaultConfig } = require("expo/metro-config");
-const path = require("path");
 
-const projectRoot = __dirname;
-const workspaceRoot = path.resolve(projectRoot, "..");
-
-const config = getDefaultConfig(projectRoot);
-
-config.watchFolders = [workspaceRoot];
-config.resolver.nodeModulesPaths = [
-  path.resolve(projectRoot, "node_modules"),
-  path.resolve(workspaceRoot, "node_modules"),
-];
-
-module.exports = config;
+module.exports = getDefaultConfig(__dirname);

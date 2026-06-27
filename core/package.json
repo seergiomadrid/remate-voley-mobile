@@ -1,0 +1,23 @@
+{
+  "name": "@remate-voley/core",
+  "version": "0.1.0",
+  "description": "Librería de análisis biomecánico del remate de voleibol (parsing, sincronización, filtros y métricas). Fuente única de verdad para la app móvil y el análisis offline.",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "tsx": "^4.22.4",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.8"
+  }
+}

@@ -5,8 +5,8 @@
     "baseUrl": ".",
     "paths": {
       "@/*": ["./src/*"],
-      "@core": ["../core/src/index.ts"],
-      "@core/*": ["../core/src/*"]
+      "@core": ["./core/src/index.ts"],
+      "@core/*": ["./core/src/*"]
     }
   },
   "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]

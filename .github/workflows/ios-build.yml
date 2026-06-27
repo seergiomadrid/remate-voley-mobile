@@ -9,49 +9,29 @@ jobs:
     timeout-minutes: 60
 
     steps:
-      - name: Checkout app móvil
+      - name: Checkout
         uses: actions/checkout@v4
-        with:
-          path: mobile
-
-      - name: Checkout librería core
-        uses: actions/checkout@v4
-        with:
-          repository: seergiomadrid/Remate-Voley
-          path: core-monorepo
-
-      # mobile/package.json usa file:../core → necesita core/ como hermano de mobile/
-      - name: Copiar core al lugar correcto
-        run: cp -r core-monorepo/core core
 
       - name: Configurar Node 18
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: mobile/package-lock.json
 
-      - name: Instalar dependencias de core
-        working-directory: core
-        run: npm ci
-
-      - name: Instalar dependencias de la app
-        working-directory: mobile
-        run: npm ci
+      - name: Instalar dependencias
+        run: npm install --no-audit --no-fund
 
       - name: Instalar Expo CLI
         run: npm install -g @expo/cli
 
       - name: Generar proyecto iOS nativo (prebuild)
-        working-directory: mobile
         run: npx expo prebuild --platform ios --clean --no-install
 
       - name: Instalar CocoaPods
-        working-directory: mobile/ios
+        working-directory: ios
         run: pod install
 
       - name: Compilar archivo sin firmar
-        working-directory: mobile/ios
+        working-directory: ios
         run: |
           xcodebuild archive \
             -workspace RemateVoley.xcworkspace \
@@ -61,8 +41,7 @@ jobs:
             CODE_SIGN_IDENTITY="" \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGNING_ALLOWED=NO \
-            -destination "generic/platform=iOS" \
-            | xcpretty || true
+            -destination "generic/platform=iOS"
 
       - name: Empaquetar como .ipa
         run: |
