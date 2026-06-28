@@ -13,14 +13,19 @@ import type { SessionPayload } from "@/analysis/persist";
 const KEY_URL = "supabase_url";
 const KEY_ANON = "supabase_anon";
 
+// Conexión por defecto (de fábrica). La publishable key es pública por diseño.
+// Se puede sobreescribir desde la pantalla de configuración de la nube.
+const DEFAULT_URL = "https://jbwdhkcbyxqoeqgwxcdy.supabase.co";
+const DEFAULT_ANON = "sb_publishable_i0Ejy43YRsWmjxamqE8CPQ_YUqL-O0A";
+
 export interface CloudConfig {
   url: string;
   anonKey: string;
 }
 
 export async function getCloudConfig(): Promise<CloudConfig | null> {
-  const url = await getConfig(KEY_URL);
-  const anonKey = await getConfig(KEY_ANON);
+  const url = (await getConfig(KEY_URL)) || DEFAULT_URL;
+  const anonKey = (await getConfig(KEY_ANON)) || DEFAULT_ANON;
   if (url && anonKey) return { url: url.replace(/\/+$/, ""), anonKey };
   return null;
 }
