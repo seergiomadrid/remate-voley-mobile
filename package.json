@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "main": "expo-router/entry",
   "scripts": {
-    "start": "expo start --dev-client",
+    "start": "expo start",
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit"
@@ -11,7 +11,6 @@
   "dependencies": {
     "expo": "~51.0.0",
     "expo-constants": "~16.0.0",
-    "expo-dev-client": "~4.0.29",
     "expo-linking": "~6.3.0",
     "expo-router": "~3.5.0",
     "expo-sqlite": "~14.0.0",
