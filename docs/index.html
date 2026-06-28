@@ -2,313 +2,532 @@
 <html lang="es">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>RemateVoley · Panel en la nube</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>RemateVoley · Panel</title>
 <style>
-  :root {
-    --ground: #0b1120;
-    --panel: #131c2e;
-    --panel2: #0f1726;
-    --line: #233047;
-    --line-soft: #1a2438;
-    --text: #e8eef7;
-    --muted: #8da2bd;
-    --faint: #5f7290;
-    --arm: #ff7a4d;
-    --torso: #3fd0c9;
-    --good: #4ade80;
-    --warn: #fbbf24;
-    --bad: #f87171;
-    --radius: 14px;
+  :root{
+    --bg:#0A0E18; --bg2:#0E1322;
+    --surface:#141A2B; --surface2:#1B2236; --raise:#222C44;
+    --hair:rgba(255,255,255,.06); --hair2:rgba(255,255,255,.12);
+    --text:#EAF0FB; --muted:#93A1BC; --faint:#5C6A85;
+    --spike:#FF6A3D; --spike2:#FFA24B;
+    --chain:#27D3C2; --violet:#7C83FF;
+    --good:#36D399; --warn:#FFB020; --bad:#FF6B6B;
+    --r:22px; --r-sm:14px;
+    --shadow:0 18px 40px -20px rgba(0,0,0,.7);
+    --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
   }
-  * { box-sizing: border-box; }
-  body {
-    margin: 0; background: var(--ground); color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-  }
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 18px 60px; }
-  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
-  h1 { font-size: 22px; margin: 0; letter-spacing: -0.3px; }
-  .brand { color: var(--arm); }
-  .sub { color: var(--muted); font-size: 13px; }
-  button {
-    font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
-    background: var(--panel); color: var(--text); padding: 8px 14px;
-  }
-  button:hover { border-color: var(--arm); }
-  button.primary { background: var(--arm); color: #0b1120; font-weight: 700; border: none; }
-  input {
-    font: inherit; background: var(--panel2); color: var(--text);
-    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%;
-  }
-  .config { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; }
-  .config .field { margin-bottom: 12px; }
-  .config label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
-  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; }
-  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
-  .list { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; align-self: start; }
-  .list h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 0; padding: 14px 14px 8px; }
-  .sess { padding: 12px 14px; border-top: 1px solid var(--line-soft); cursor: pointer; }
-  .sess:hover { background: var(--panel2); }
-  .sess.active { background: var(--panel2); box-shadow: inset 3px 0 0 var(--arm); }
-  .sess .name { font-weight: 600; font-size: 14px; }
-  .sess .date { color: var(--faint); font-size: 12px; margin-top: 2px; }
-  .sess .chips { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
-  .chip { font-size: 11px; color: var(--muted); background: var(--ground); border: 1px solid var(--line-soft); border-radius: 6px; padding: 2px 7px; }
-  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
-  .panel h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 0 0 10px; font-weight: 700; }
-  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
-  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
-  .kpi .k-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-weight: 700; }
-  .kpi .k-val { font-size: 28px; font-weight: 800; margin-top: 4px; }
-  .kpi .k-unit { font-size: 14px; color: var(--muted); font-weight: 600; }
-  .kpi .k-sub { font-size: 12px; color: var(--faint); margin-top: 2px; }
-  .k-bar { height: 3px; border-radius: 2px; margin-top: 10px; opacity: 0.85; }
-  canvas { width: 100%; height: 280px; display: block; }
-  .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--muted); align-items: center; }
-  .legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
-  table { width: 100%; border-collapse: collapse; font-size: 13px; }
-  th { text-align: right; color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 700; padding: 8px 6px; border-bottom: 1px solid var(--line); }
-  th:first-child, td:first-child { text-align: left; }
-  td { text-align: right; padding: 9px 6px; border-bottom: 1px solid var(--line-soft); }
-  .tip { background: var(--panel2); border-left: 3px solid var(--torso); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
-  .tip.good { border-left-color: var(--good); }
-  .tip.warn { border-left-color: var(--warn); }
-  .tip .t-cat { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--faint); font-weight: 700; }
-  .tip .t-msg { font-size: 13.5px; margin-top: 2px; }
-  .seq-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
-  .seq-idx { color: var(--muted); width: 34px; font-size: 12px; }
-  .seq-track { flex: 1; height: 20px; background: var(--panel2); border: 1px solid var(--line-soft); border-radius: 6px; position: relative; }
-  .seq-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
-  .seq-bar { position: absolute; top: 4px; height: 11px; border-radius: 3px; border: 1px solid; }
-  .seq-val { width: 70px; text-align: right; font-size: 12.5px; font-weight: 700; }
-  .empty { color: var(--faint); text-align: center; padding: 50px 20px; }
-  .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
-  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
-  .muted { color: var(--muted); font-size: 13px; }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{margin:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;}
+  body{background:
+     radial-gradient(120% 80% at 85% -10%, rgba(255,106,61,.10), transparent 55%),
+     radial-gradient(90% 70% at -10% 0%, rgba(39,211,194,.07), transparent 50%),
+     var(--bg);
+     background-attachment:fixed; min-height:100vh;}
+  .wrap{max-width:760px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 16px 80px;}
+  .num{font-variant-numeric:tabular-nums;}
+
+  /* top bar */
+  .top{display:flex;align-items:center;gap:12px;padding:6px 2px 18px;}
+  .logo{width:40px;height:40px;border-radius:13px;background:linear-gradient(135deg,var(--spike),var(--spike2));
+    display:grid;place-items:center;font-size:20px;box-shadow:0 8px 20px -6px rgba(255,106,61,.6);}
+  .top h1{font-size:17px;margin:0;font-weight:800;letter-spacing:-.2px;}
+  .top .sub{font-size:12px;color:var(--muted);margin-top:1px;}
+  .top .spacer{flex:1;}
+  .iconbtn{width:38px;height:38px;border-radius:12px;border:1px solid var(--hair);background:var(--surface);
+    color:var(--text);display:grid;place-items:center;cursor:pointer;font-size:16px;}
+  .iconbtn:hover{border-color:var(--hair2);}
+
+  /* session selector */
+  .picker{display:flex;gap:8px;overflow-x:auto;padding:2px 2px 14px;scrollbar-width:none;}
+  .picker::-webkit-scrollbar{display:none;}
+  .pill{flex:0 0 auto;padding:9px 14px;border-radius:999px;border:1px solid var(--hair);background:var(--surface);
+    color:var(--muted);font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap;}
+  .pill.active{background:linear-gradient(135deg,var(--spike),var(--spike2));color:#1a0d06;border-color:transparent;}
+  .pill .d{font-size:11px;opacity:.8;font-weight:500;}
+
+  /* config */
+  .config{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:20px;margin-bottom:16px;}
+  .config label{display:block;font-size:11px;text-transform:uppercase;letter-spacing:.8px;color:var(--muted);font-weight:700;margin:0 0 6px;}
+  .config input{width:100%;background:var(--bg2);border:1px solid var(--hair);border-radius:12px;padding:11px 13px;color:var(--text);font:inherit;margin-bottom:12px;}
+  .btn{font:inherit;cursor:pointer;border:none;border-radius:12px;padding:11px 18px;font-weight:700;
+    background:linear-gradient(135deg,var(--spike),var(--spike2));color:#1a0d06;}
+  .btn.ghost{background:var(--surface);color:var(--text);border:1px solid var(--hair);}
+
+  /* hero */
+  .hero{position:relative;background:
+      linear-gradient(160deg, rgba(255,106,61,.16), rgba(20,26,43,.2) 45%), var(--surface);
+    border:1px solid var(--hair);border-radius:26px;padding:20px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow);}
+  .hero .glow{position:absolute;right:-40px;top:-50px;width:200px;height:200px;border-radius:50%;
+    background:radial-gradient(circle,rgba(255,106,61,.35),transparent 70%);filter:blur(8px);}
+  .hero-row{display:flex;align-items:center;gap:18px;position:relative;}
+  .verdict-tag{display:inline-flex;align-items:center;gap:6px;font-size:11px;font-weight:800;letter-spacing:.5px;
+    text-transform:uppercase;padding:5px 10px;border-radius:999px;}
+  .hero h2{margin:10px 0 2px;font-size:21px;font-weight:800;letter-spacing:-.3px;line-height:1.2;}
+  .hero p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.5;}
+  .hero-meta{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;position:relative;}
+  .meta-chip{font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--hair);border-radius:10px;padding:6px 10px;}
+  .meta-chip b{color:var(--text);font-weight:700;}
+
+  /* section heading */
+  .sec{margin:22px 2px 12px;display:flex;align-items:baseline;gap:8px;}
+  .sec h3{font-size:15px;margin:0;font-weight:800;letter-spacing:-.2px;}
+  .sec .hint{font-size:12px;color:var(--faint);}
+
+  /* metric cards grid */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  @media(max-width:480px){.grid{grid-template-columns:1fr;}}
+  .mcard{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;}
+  .mcard .top-line{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
+  .mcard .m-label{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700;}
+  .mcard .m-val{font-size:30px;font-weight:850;letter-spacing:-1px;margin-top:8px;line-height:1;}
+  .mcard .m-unit{font-size:14px;color:var(--muted);font-weight:600;margin-left:3px;}
+  .mcard .m-mean{font-size:12px;color:var(--faint);margin-top:4px;}
+  .chip{font-size:10.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;padding:4px 8px;border-radius:8px;}
+  .m-explain{font-size:12.5px;color:var(--muted);line-height:1.5;margin-top:11px;padding-top:11px;border-top:1px solid var(--hair);}
+  .m-explain b{color:var(--text);}
+
+  /* range bar */
+  .range{margin-top:12px;}
+  .range-track{height:7px;border-radius:999px;background:var(--bg2);position:relative;overflow:hidden;}
+  .range-zone{position:absolute;top:0;bottom:0;border-radius:999px;opacity:.35;}
+  .range-fill{position:absolute;top:0;bottom:0;left:0;border-radius:999px;}
+  .range-marker{position:absolute;top:-3px;width:3px;height:13px;border-radius:2px;background:#fff;box-shadow:0 0 0 2px var(--bg);}
+  .range-labels{display:flex;justify-content:space-between;margin-top:6px;font-size:10.5px;color:var(--faint);}
+
+  /* ring */
+  .ring-wrap{display:flex;align-items:center;gap:16px;}
+  .ring{position:relative;flex:0 0 auto;}
+  .ring .center{position:absolute;inset:0;display:grid;place-items:center;text-align:center;}
+  .ring .big{font-size:30px;font-weight:850;letter-spacing:-1px;line-height:1;}
+  .ring .small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:3px;}
+
+  /* panel/card */
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:16px;margin-bottom:12px;}
+  .card h4{font-size:13px;margin:0 0 3px;font-weight:800;}
+  .card .desc{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.5;}
+
+  canvas{width:100%;display:block;border-radius:12px;}
+  .legend{display:flex;gap:14px;margin-top:10px;font-size:12px;color:var(--muted);flex-wrap:wrap;}
+  .legend i{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle;}
+  .legend .dot{width:8px;height:8px;border-radius:50%;}
+
+  /* kinetic chain */
+  .kc-rep{display:flex;align-items:center;gap:12px;padding:10px 0;border-top:1px solid var(--hair);}
+  .kc-rep:first-child{border-top:none;}
+  .kc-idx{width:30px;height:30px;border-radius:10px;background:var(--bg2);display:grid;place-items:center;font-size:13px;font-weight:800;color:var(--muted);flex:0 0 auto;}
+  .kc-track{flex:1;height:30px;position:relative;background:var(--bg2);border-radius:9px;overflow:hidden;}
+  .kc-ideal{position:absolute;top:0;bottom:0;background:rgba(54,211,153,.13);}
+  .kc-mid{position:absolute;left:50%;top:0;bottom:0;width:1px;background:var(--hair2);}
+  .kc-bar{position:absolute;top:6px;height:18px;border-radius:6px;display:flex;align-items:center;padding:0 7px;font-size:11px;font-weight:700;}
+  .kc-val{flex:0 0 auto;width:70px;text-align:right;font-size:13px;font-weight:800;}
+
+  /* rep analysis cards */
+  .rep{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:14px;margin-bottom:10px;}
+  .rep-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .rep-no{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-weight:850;font-size:15px;
+    background:linear-gradient(135deg,rgba(255,106,61,.25),rgba(255,162,75,.15));color:var(--spike2);flex:0 0 auto;}
+  .rep-title{font-weight:800;font-size:14px;}
+  .rep-sub{font-size:12px;color:var(--faint);}
+  .rep-stats{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+  .rstat{background:var(--bg2);border:1px solid var(--hair);border-radius:10px;padding:7px 10px;min-width:74px;}
+  .rstat .rk{font-size:10px;color:var(--faint);text-transform:uppercase;letter-spacing:.5px;}
+  .rstat .rv{font-size:15px;font-weight:800;margin-top:2px;}
+  .rep-note{font-size:13px;color:var(--muted);line-height:1.55;background:var(--bg2);border-radius:11px;padding:10px 12px;border-left:3px solid var(--spike);}
+
+  /* tips / focus */
+  .focus{background:linear-gradient(160deg,rgba(124,131,255,.14),var(--surface));border:1px solid var(--hair);border-radius:var(--r);padding:18px;margin-bottom:12px;}
+  .focus .ft{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--violet);font-weight:800;}
+  .focus h4{margin:6px 0 4px;font-size:17px;font-weight:850;}
+  .focus p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55;}
+  .tip{display:flex;gap:11px;padding:12px 0;border-top:1px solid var(--hair);}
+  .tip:first-child{border-top:none;}
+  .tip-ic{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-size:16px;flex:0 0 auto;}
+  .tip-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:700;}
+  .tip-msg{font-size:13.5px;line-height:1.5;margin-top:2px;}
+
+  .empty{color:var(--faint);text-align:center;padding:60px 20px;font-size:14px;}
+  .err{color:var(--bad);font-size:13px;}
+  .center-load{text-align:center;padding:50px;color:var(--muted);}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <header>
-    <h1><span class="brand">Remate</span>Voley</h1>
-    <span class="sub">Panel en la nube · tus sesiones de remate</span>
-  </header>
+  <div class="top">
+    <div class="logo">🏐</div>
+    <div>
+      <h1>RemateVoley</h1>
+      <div class="sub" id="topsub">Análisis de remate</div>
+    </div>
+    <div class="spacer"></div>
+    <button class="iconbtn" onclick="loadList()" title="Actualizar">↻</button>
+    <button class="iconbtn" onclick="forgetConfig()" title="Cambiar proyecto">⚙</button>
+  </div>
 
   <div id="config" class="config" hidden>
-    <div class="field">
-      <label>URL del proyecto Supabase</label>
-      <input id="cfgUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" />
+    <label>URL del proyecto Supabase</label>
+    <input id="cfgUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" />
+    <label>Clave pública (anon / publishable)</label>
+    <input id="cfgKey" placeholder="sb_publishable_… o eyJ…" autocomplete="off" />
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn" onclick="saveConfig()">Conectar</button>
+      <span style="color:var(--muted);font-size:12.5px">Se guarda solo en este navegador.</span>
     </div>
-    <div class="field">
-      <label>Clave pública (anon key)</label>
-      <input id="cfgKey" placeholder="eyJ..." autocomplete="off" />
-    </div>
-    <div class="row">
-      <button class="primary" onclick="saveConfig()">Conectar</button>
-      <span class="muted">Se guarda solo en este navegador.</span>
-    </div>
-    <div id="cfgErr" class="err"></div>
+    <div id="cfgErr" class="err" style="margin-top:8px"></div>
   </div>
 
-  <div class="row" id="topbar" style="margin-bottom:16px" hidden>
-    <button onclick="loadList()">↻ Actualizar</button>
-    <button onclick="forgetConfig()">Cambiar proyecto</button>
-    <span id="status" class="muted"></span>
-  </div>
-
-  <div class="layout" id="main" hidden>
-    <div class="list">
-      <h2>Sesiones</h2>
-      <div id="sessions"></div>
-    </div>
-    <div id="detail">
-      <div class="empty">Selecciona una sesión de la izquierda.</div>
-    </div>
-  </div>
+  <div id="picker" class="picker" hidden></div>
+  <div id="view"></div>
 </div>
 
 <script>
-const LS_URL = "rv_supabase_url", LS_KEY = "rv_supabase_key";
-// Conexión por defecto (de fábrica). La publishable key es pública por diseño.
-const DEFAULT_URL = "https://jbwdhkcbyxqoeqgwxcdy.supabase.co";
-const DEFAULT_KEY = "sb_publishable_i0Ejy43YRsWmjxamqE8CPQ_YUqL-O0A";
-let cfg = { url: localStorage.getItem(LS_URL) || DEFAULT_URL, key: localStorage.getItem(LS_KEY) || DEFAULT_KEY };
+const LS_URL="rv_supabase_url", LS_KEY="rv_supabase_key";
+const DEFAULT_URL="https://jbwdhkcbyxqoeqgwxcdy.supabase.co";
+const DEFAULT_KEY="sb_publishable_i0Ejy43YRsWmjxamqE8CPQ_YUqL-O0A";
+let cfg={url:localStorage.getItem(LS_URL)||DEFAULT_URL,key:localStorage.getItem(LS_KEY)||DEFAULT_KEY};
+let sessions=[], current=null;
 
-function el(id){ return document.getElementById(id); }
-function show(id, on){ el(id).hidden = !on; }
+// Sesión de demostración integrada (para ver el diseño sin subir nada).
+const DEMO_PAYLOAD=(function(){
+  const t=[],g=[],ac=[];
+  for(let i=0;i<140;i++){let v=120+70*Math.sin(i*0.7)*Math.random();
+    [[28,1550],[60,895],[95,2484],[125,2719]].forEach(([c,h])=>{v+=h*Math.exp(-Math.pow((i-c)/5,2));});
+    g.push(Math.max(40,v));t.push(i*45);ac.push(1+Math.random()*2);}
+  const torsoG=g.map(v=>v*0.18+50*Math.random());
+  return {startedAtMs:Date.now()-86400000,clockOffsetMs:127,
+    aggregates:{repCount:4,armPeakBestDps:2719,armPeakMeanDps:1912,armConsistencyCvPct:44,sequencingOkPct:0,sequencingMeanLagMs:18,load:7.6,fatigueDropPct:10,qualityIndex:55,jumpBestCm:null},
+    tips:[{category:"Secuenciación",message:"Ningún remate sigue el orden tronco→brazo. Inicia el golpe desde la rotación del tronco y deja que el brazo lo siga.",severity:"bad"},
+          {category:"Consistencia",message:"Tus picos varían un 44%. Repite la misma carrera y armado en cada remate.",severity:"warn"},
+          {category:"Potencia",message:"Gran pico máximo (2719°/s), saturando el sensor en los remates fuertes.",severity:"good"}],
+    reps:[{index:0,armPeakDps:1550,armSaturated:false,armTimeToPeakMs:300,armShape:"intermedio",torsoPeakDps:347,lagMs:-5,sequencingOk:false},
+      {index:1,armPeakDps:895,armSaturated:false,armTimeToPeakMs:280,armShape:"empuje",torsoPeakDps:231,lagMs:-40,sequencingOk:false},
+      {index:2,armPeakDps:2484,armSaturated:true,armTimeToPeakMs:150,armShape:"latigazo",torsoPeakDps:311,lagMs:-80,sequencingOk:false},
+      {index:3,armPeakDps:2719,armSaturated:true,armTimeToPeakMs:140,armShape:"latigazo",torsoPeakDps:436,lagMs:195,sequencingOk:false}],
+    traces:{arm:{t,gyro:g,acc:ac,peaks:[28,60,95,125]},torso:{t,gyro:torsoG,acc:ac,peaks:[28,60,95,125]}}};
+})();
+const DEMO_ENTRY={id:"demo",name:"Demo",created_at:new Date(Date.now()-86400000).toISOString()};
 
-function init(){
-  if (cfg.url && cfg.key) { showApp(); loadList(); }
-  else { show("config", true); }
-}
+const $=id=>document.getElementById(id);
+const show=(id,on)=>{$(id).hidden=!on;};
+
+function init(){ if(cfg.url&&cfg.key){ show("config",false); loadList(); } else show("config",true); }
 
 function saveConfig(){
-  const url = el("cfgUrl").value.trim().replace(/\/+$/, "");
-  const key = el("cfgKey").value.trim();
-  if (!url.includes("supabase.co") || key.length < 20) {
-    el("cfgErr").textContent = "Revisa la URL y la clave.";
-    return;
-  }
-  cfg = { url, key };
-  localStorage.setItem(LS_URL, url);
-  localStorage.setItem(LS_KEY, key);
-  showApp(); loadList();
+  const url=$("cfgUrl").value.trim().replace(/\/+$/,""), key=$("cfgKey").value.trim();
+  if(!url.includes("supabase.co")||key.length<20){$("cfgErr").textContent="Revisa la URL y la clave.";return;}
+  cfg={url,key}; localStorage.setItem(LS_URL,url); localStorage.setItem(LS_KEY,key);
+  show("config",false); loadList();
 }
-
-function forgetConfig(){
-  localStorage.removeItem(LS_URL); localStorage.removeItem(LS_KEY);
-  cfg = { url: "", key: "" };
-  show("main", false); show("topbar", false);
-  el("cfgUrl").value = ""; el("cfgKey").value = "";
-  show("config", true);
-}
-
-function showApp(){ show("config", false); show("topbar", true); show("main", true); }
+function forgetConfig(){ localStorage.removeItem(LS_URL);localStorage.removeItem(LS_KEY);cfg={url:"",key:""};
+  show("picker",false);$("view").innerHTML="";$("cfgUrl").value="";$("cfgKey").value="";show("config",true);}
 
 async function api(path){
-  const res = await fetch(cfg.url + "/rest/v1/" + path, {
-    headers: { apikey: cfg.key, Authorization: "Bearer " + cfg.key },
-  });
-  if (!res.ok) throw new Error("Error " + res.status + ": " + (await res.text().catch(()=>"")));
-  return res.json();
+  const r=await fetch(cfg.url+"/rest/v1/"+path,{headers:{apikey:cfg.key,Authorization:"Bearer "+cfg.key}});
+  if(!r.ok) throw new Error("Error "+r.status+": "+(await r.text().catch(()=>"")));
+  return r.json();
 }
 
 async function loadList(){
-  el("status").textContent = "Cargando…";
-  try {
-    const rows = await api("sessions?select=id,name,created_at,started_at,rep_count,quality_index,arm_peak_best_dps,sequencing_ok_pct,session_load&order=created_at.desc");
-    el("status").textContent = rows.length + " sesiones";
-    renderList(rows);
-  } catch (e) {
-    el("status").textContent = "";
-    el("sessions").innerHTML = '<div class="sess"><div class="err">' + e.message + '</div></div>';
-  }
+  $("view").innerHTML='<div class="center-load">Cargando…</div>';
+  try{
+    const real=await api("sessions?select=id,name,created_at,started_at,rep_count,quality_index,arm_peak_best_dps,sequencing_ok_pct,session_load&order=created_at.desc");
+    // Filtra la fila de prueba con payload incompleto; añade la Demo al final.
+    const clean=real.filter(s=>s.rep_count>0||(s.quality_index>0));
+    sessions=[...clean, DEMO_ENTRY];
+    $("topsub").textContent=clean.length?clean.length+" sesiones guardadas":"Demo · sube tu primera sesión";
+    renderPicker();
+    openSession(sessions[0].id);
+  }catch(e){ show("picker",false); $("view").innerHTML='<div class="empty err">'+e.message+'</div>'; }
 }
 
-function renderList(rows){
-  if (!rows.length) { el("sessions").innerHTML = '<div class="sess muted">Aún no has subido ninguna sesión.</div>'; return; }
-  el("sessions").innerHTML = rows.map(r => `
-    <div class="sess" data-id="${r.id}" onclick="openSession('${r.id}', this)">
-      <div class="name">${escapeHtml(r.name || "Sesión")}</div>
-      <div class="date">${new Date(r.created_at).toLocaleString()}</div>
-      <div class="chips">
-        <span class="chip">Calidad ${Math.round(r.quality_index||0)}</span>
-        <span class="chip">${r.rep_count||0} remates</span>
-        <span class="chip">Pico ${Math.round(r.arm_peak_best_dps||0)}°/s</span>
+function renderPicker(){
+  show("picker",true);
+  $("picker").innerHTML=sessions.map(s=>`
+    <button class="pill ${current===s.id?'active':''}" data-id="${s.id}" onclick="openSession('${s.id}')">
+      ${escapeHtml(s.name||'Sesión')} <span class="d">· ${new Date(s.created_at).toLocaleDateString()}</span>
+    </button>`).join("");
+}
+
+async function openSession(id){
+  current=id; renderPicker();
+  if(id==="demo"){ renderSession("Demo · remate de ejemplo", DEMO_PAYLOAD); window.scrollTo(0,0); return; }
+  $("view").innerHTML='<div class="center-load">Cargando sesión…</div>';
+  try{
+    const rows=await api("sessions?id=eq."+id+"&select=name,created_at,payload");
+    if(!rows.length){ $("view").innerHTML='<div class="empty">No encontrada.</div>'; return; }
+    renderSession(rows[0].name, rows[0].payload); window.scrollTo(0,0);
+  }catch(e){ $("view").innerHTML='<div class="empty err">'+e.message+'</div>'; }
+}
+
+/* ---------- análisis en lenguaje claro ---------- */
+function verdict(kind,v){
+  if(v==null||isNaN(v)) return {key:"na",label:"—",color:"var(--faint)"};
+  let k;
+  if(kind==="quality") k = v>=72?"good":v>=48?"warn":"bad";
+  else if(kind==="seq") k = v>=60?"good":v>=30?"warn":"bad";
+  else if(kind==="cv")  k = v<=15?"good":v<=28?"warn":"bad";
+  else if(kind==="ttp") k = v<=120?"good":v<=180?"warn":"bad";
+  else k="warn";
+  return {good:{key:"good",label:"Bien",color:"var(--good)"},warn:{key:"warn",label:"Mejorable",color:"var(--warn)"},bad:{key:"bad",label:"A trabajar",color:"var(--bad)"}}[k];
+}
+function chipStyle(c){return `color:${c};background:${c.replace('var(','rgba(').replace(')','')}`;} // fallback
+function tone(c){ // returns bg tint for a css var color
+  const map={"var(--good)":"rgba(54,211,153,.15)","var(--warn)":"rgba(255,176,32,.15)","var(--bad)":"rgba(255,107,107,.15)","var(--faint)":"rgba(92,106,133,.15)"};
+  return map[c]||"rgba(255,255,255,.08)";
+}
+
+function repNote(r){
+  const power = r.armPeakDps>=2000?"muy potente"+(r.armSaturated?" (saturó el sensor)":""):r.armPeakDps>=1200?"potente":"suave";
+  let seq;
+  if(r.lagMs==null) seq="no se detectó el tronco en este remate";
+  else if(r.lagMs>=10&&r.lagMs<=150) seq="buena secuencia: el tronco lideró y el brazo lo siguió ("+r.lagMs+" ms)";
+  else if(r.lagMs<10) seq="el brazo se adelantó al tronco ("+r.lagMs+" ms): pierdes potencia de la cadena";
+  else seq="el brazo tardó mucho tras el tronco (+"+r.lagMs+" ms): se rompe la conexión";
+  return `Remate ${power}. ${seq.charAt(0).toUpperCase()+seq.slice(1)}.`;
+}
+
+function buildFocus(a, reps){
+  // elige el área de mejora prioritaria
+  const seqOk=a.sequencingOkPct, cv=a.armConsistencyCvPct;
+  if(seqOk<40) return {tag:"Foco principal",h:"Secuencia tronco → brazo",p:"Tu cadena cinética es lo que más margen tiene. En un buen remate el tronco gira primero y el brazo lo sigue como un látigo (10–150 ms después). Trabaja iniciar el golpe desde la rotación del tronco, no solo con el brazo."};
+  if(cv>28) return {tag:"Foco principal",h:"Consistencia del gesto",p:"Tus remates varían bastante entre sí. Busca repetir la misma mecánica: misma carrera, mismo armado y mismo punto de contacto. La regularidad es la base para luego subir potencia."};
+  if(a.armPeakMeanDps<1500) return {tag:"Foco principal",h:"Potencia y explosividad",p:"Hay margen para golpear más fuerte. Trabaja la velocidad del armado y el latigazo final de muñeca; la potencia nace de acelerar en el último tramo, no de empujar."};
+  return {tag:"Vas muy bien",h:"Mantén y pule",p:"Tu técnica es sólida. Sigue afinando la consistencia y la sincronización para subir el último escalón."};
+}
+
+/* ---------- render principal ---------- */
+function renderSession(name,p){
+  if(!p||!p.aggregates||!p.reps||!p.traces){
+    $("view").innerHTML='<div class="empty">Esta sesión no tiene datos completos para mostrar.<br>Sube una sesión real desde la app.</div>'; return;
+  }
+  const a=p.aggregates;
+  const qv=verdict("quality",a.qualityIndex);
+  const seqv=verdict("seq",a.sequencingOkPct);
+  const cvv=verdict("cv",a.armConsistencyCvPct);
+  const ttp = avgTtp(p);
+  const ttpv=verdict("ttp",ttp);
+  const sat = p.reps.filter(r=>r.armSaturated).length;
+  const focus=buildFocus(a,p.reps);
+  const qVerdictText = a.qualityIndex>=72?"Gran sesión, técnica sólida.":a.qualityIndex>=48?"Buena base, con margen claro de mejora.":"Sesión para construir técnica desde la base.";
+
+  $("view").innerHTML=`
+    <div class="hero">
+      <div class="glow"></div>
+      <div class="hero-row">
+        ${ringSVG(a.qualityIndex,100,86,qv.color,Math.round(a.qualityIndex),"Calidad")}
+        <div style="flex:1;min-width:0">
+          <span class="verdict-tag" style="color:${qv.color};background:${tone(qv.color)}">${qv.label}</span>
+          <h2>${escapeHtml(name)}</h2>
+          <p>${qVerdictText}</p>
+        </div>
       </div>
-    </div>`).join("");
-}
-
-async function openSession(id, node){
-  document.querySelectorAll(".sess").forEach(s => s.classList.remove("active"));
-  if (node) node.classList.add("active");
-  el("detail").innerHTML = '<div class="empty">Cargando…</div>';
-  try {
-    const rows = await api("sessions?id=eq." + id + "&select=name,created_at,payload");
-    if (!rows.length) { el("detail").innerHTML = '<div class="empty">No encontrada.</div>'; return; }
-    renderDetail(rows[0].name, rows[0].payload);
-  } catch (e) {
-    el("detail").innerHTML = '<div class="empty err">' + e.message + '</div>';
-  }
-}
-
-function sev(kind, v){
-  if (kind === "quality") return v >= 70 ? "good" : v >= 45 ? "warn" : "bad";
-  if (kind === "seq") return v >= 60 ? "good" : v >= 30 ? "warn" : "bad";
-  if (kind === "cv") return v <= 15 ? "good" : v <= 30 ? "warn" : "bad";
-  return "muted";
-}
-const COL = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", muted: "var(--text)" };
-
-function renderDetail(name, p){
-  if (!p || !p.aggregates || !p.reps || !p.traces) {
-    el("detail").innerHTML = '<div class="empty">Esta sesión no tiene datos completos para mostrar (sube una sesión real desde la app).</div>';
-    return;
-  }
-  const a = p.aggregates;
-  const paired = p.reps.filter(r => r.lagMs != null);
-  const maxLag = Math.max(120, ...paired.map(r => Math.abs(r.lagMs)));
-  const kpi = (label,val,unit,sub,color) => `
-    <div class="kpi"><div class="k-label">${label}</div>
-      <div class="k-val">${val}<span class="k-unit"> ${unit}</span></div>
-      <div class="k-sub">${sub}</div>
-      <div class="k-bar" style="background:${color}"></div></div>`;
-
-  el("detail").innerHTML = `
-    <div class="panel" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
-      <div><strong style="font-size:16px">${escapeHtml(name)}</strong>
-      <div class="muted">${new Date(p.startedAtMs).toLocaleString()} · ${a.repCount} remates · sync ${p.clockOffsetMs} ms</div></div>
+      <div class="hero-meta">
+        <span class="meta-chip"><b>${a.repCount}</b> remates</span>
+        <span class="meta-chip">📅 ${new Date(p.startedAtMs).toLocaleDateString()}</span>
+        <span class="meta-chip">⚡ pico <b class="num">${Math.round(a.armPeakBestDps)}</b>°/s</span>
+        ${sat?`<span class="meta-chip" style="color:var(--warn)">▲ ${sat} saturó${sat>1?'n':''}</span>`:''}
+      </div>
     </div>
-    <div class="kpis">
-      ${kpi("Calidad", Math.round(a.qualityIndex), "", "0–100", COL[sev("quality",a.qualityIndex)])}
-      ${kpi("Pico de brazo", Math.round(a.armPeakBestDps), "°/s", "media "+Math.round(a.armPeakMeanDps), "var(--arm)")}
-      ${kpi("Secuencia OK", Math.round(a.sequencingOkPct), "%", "lag "+(a.sequencingMeanLagMs!=null?Math.round(a.sequencingMeanLagMs):"—")+" ms", COL[sev("seq",a.sequencingOkPct)])}
-      ${kpi("Consistencia (CV)", Math.round(a.armConsistencyCvPct), "%", "menor es mejor", COL[sev("cv",a.armConsistencyCvPct)])}
-      ${kpi("Carga", (a.load).toFixed(1), "", a.fatigueDropPct!=null?("fatiga "+(a.fatigueDropPct>0?"↓":"↑")+Math.abs(Math.round(a.fatigueDropPct))+"%"):"—", "var(--text)")}
+
+    <div class="focus">
+      <div class="ft">${focus.tag}</div>
+      <h4>${focus.h}</h4>
+      <p>${focus.p}</p>
     </div>
-    <div class="panel">
-      <h3>Velocidad angular</h3>
+
+    <div class="sec"><h3>Tus métricas</h3><span class="hint">toca para entender cada una</span></div>
+    <div class="grid">
+      ${metricCard({label:"Potencia de brazo",val:Math.round(a.armPeakBestDps),unit:"°/s",mean:"media "+Math.round(a.armPeakMeanDps)+"°/s",
+        v:{key:a.armPeakBestDps>=2000?"good":a.armPeakBestDps>=1300?"warn":"bad",label:a.armPeakBestDps>=2000?"Potente":a.armPeakBestDps>=1300?"Correcto":"Suave",color:a.armPeakBestDps>=2000?"var(--good)":a.armPeakBestDps>=1300?"var(--warn)":"var(--bad)"},
+        explain:"Velocidad de giro de la muñeca en el golpe. A más alto, más potencia."+(sat?" <b>Algunos remates saturaron el sensor (≥2000°/s)</b>: tu pico real es aún mayor.":""),
+        range:{min:500,max:2200,a:1300,b:2200,val:a.armPeakBestDps,zoneColor:"var(--good)"}})}
+
+      ${metricCard({label:"Secuencia tronco→brazo",val:Math.round(a.sequencingOkPct),unit:"%",mean:"lag medio "+(a.sequencingMeanLagMs!=null?Math.round(a.sequencingMeanLagMs):"—")+" ms",
+        v:seqv, explain:"Qué % de remates siguen el orden correcto: <b>el tronco gira y el brazo lo sigue como un látigo</b>. Es la clave de la potencia eficiente.",
+        range:{min:0,max:100,a:60,b:100,val:a.sequencingOkPct,zoneColor:"var(--good)"}})}
+
+      ${metricCard({label:"Consistencia",val:Math.round(a.armConsistencyCvPct),unit:"%",mean:"variación entre remates",
+        v:cvv, explain:"Cuánto varían tus remates entre sí (CV). <b>Más bajo = más regular</b>. La regularidad es la base para mejorar.",
+        range:{min:0,max:50,a:0,b:15,val:a.armConsistencyCvPct,zoneColor:"var(--good)",invert:true}})}
+
+      ${metricCard({label:"Explosividad",val:Math.round(ttp),unit:"ms",mean:"tiempo hasta el pico",
+        v:ttpv, explain:"Cuánto tardas en alcanzar la máxima velocidad. <b>Menos ms = gesto más explosivo</b>, tipo látigo.",
+        range:{min:50,max:260,a:50,b:120,val:ttp,zoneColor:"var(--good)",invert:true}})}
+    </div>
+
+    <div class="sec"><h3>Velocidad angular del gesto</h3></div>
+    <div class="card">
+      <p class="desc">Cada pico es un remate. La línea naranja es tu muñeca; la turquesa, el tronco. La franja roja marca el límite del sensor (2000°/s).</p>
       <canvas id="chart"></canvas>
-      <div class="legend"><span><i style="background:var(--arm)"></i>Brazo</span>${p.traces.torso?'<span><i style="background:var(--torso)"></i>Torso</span>':''}<span><i style="background:var(--warn)"></i>saturación 2000°/s</span></div>
+      <div class="legend">
+        <span><i style="background:var(--spike)"></i>Brazo (muñeca)</span>
+        ${p.traces.torso?'<span><i style="background:var(--chain)"></i>Tronco</span>':''}
+        <span><i style="background:rgba(255,107,107,.6)"></i>Saturación</span>
+      </div>
     </div>
-    ${paired.length ? `<div class="panel"><h3>Secuencia torso → brazo</h3>${paired.map(r=>{
-      const ok=r.sequencingOk; const w=(Math.abs(r.lagMs)/maxLag)*46; const c=ok?"var(--good)":"var(--bad)";
-      return `<div class="seq-row"><span class="seq-idx">#${r.index+1}</span>
-        <div class="seq-track"><div class="seq-mid"></div>
-        <div class="seq-bar" style="left:${r.lagMs>=0?50:50-w}%;width:${w}%;background:${c}33;border-color:${c}"></div></div>
-        <span class="seq-val" style="color:${c}">${r.lagMs>0?"+":""}${r.lagMs} ms</span></div>`;
-    }).join("")}</div>` : ""}
-    <div class="panel"><h3>Consejos</h3>${p.tips.map(t=>`
-      <div class="tip ${t.severity==='good'?'good':t.severity==='warn'?'warn':''}">
-        <div class="t-cat">${escapeHtml(t.category)}</div><div class="t-msg">${escapeHtml(t.message)}</div></div>`).join("")}</div>
-    <div class="panel"><h3>Remates</h3>
-      <table><thead><tr><th>#</th><th>Brazo</th><th>Torso</th><th>Lag</th><th>Sec</th></tr></thead><tbody>
-      ${p.reps.map(r=>`<tr><td>${r.index+1}</td><td>${Math.round(r.armPeakDps)}${r.armSaturated?" ▲":""}</td>
-        <td>${r.torsoPeakDps??"—"}</td><td>${r.lagMs??"—"}</td>
-        <td style="color:${r.lagMs==null?'var(--faint)':r.sequencingOk?'var(--good)':'var(--faint)'}">${r.lagMs==null?"—":r.sequencingOk?"✓":"✗"}</td></tr>`).join("")}
-      </tbody></table>
-    </div>`;
+
+    ${renderKineticChain(p)}
+
+    <div class="sec"><h3>Remate a remate</h3><span class="hint">análisis individual</span></div>
+    ${p.reps.map(r=>renderRep(r)).join("")}
+
+    <div class="sec"><h3>Consejos</h3></div>
+    <div class="card">
+      ${p.tips.map(t=>{
+        const ic=t.severity==="good"?"✅":t.severity==="warn"?"⚠️":"🎯";
+        const col=t.severity==="good"?"var(--good)":t.severity==="warn"?"var(--warn)":"var(--violet)";
+        return `<div class="tip"><div class="tip-ic" style="background:${tone(col)};">${ic}</div>
+          <div><div class="tip-cat">${escapeHtml(t.category)}</div><div class="tip-msg">${escapeHtml(t.message)}</div></div></div>`;
+      }).join("")}
+    </div>
+  `;
   drawChart(p.traces);
 }
 
-function drawChart(traces){
-  const canvas = el("chart");
-  const dpr = window.devicePixelRatio || 1;
-  const W = canvas.clientWidth, H = 280;
-  canvas.width = W * dpr; canvas.height = H * dpr;
-  const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
-  const pad = { l: 40, r: 10, t: 10, b: 20 };
-  const arm = traces.arm, torso = traces.torso;
-  const maxY = Math.max(2200, ...arm.gyro, ...(torso?torso.gyro:[0]));
-  const n = arm.t.length;
-  const x = i => pad.l + (i/(n-1)) * (W-pad.l-pad.r);
-  const y = v => pad.t + (1 - v/maxY) * (H-pad.t-pad.b);
-  ctx.clearRect(0,0,W,H);
-  // grid
-  ctx.strokeStyle = "#1a2438"; ctx.fillStyle = "#5f7290"; ctx.font = "10px sans-serif"; ctx.lineWidth = 1;
-  for (let g=0; g<=maxY; g+=500){ const yy=y(g); ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke(); ctx.fillText(g, 4, yy+3); }
-  // saturation line
-  ctx.strokeStyle = "#fbbf24"; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.moveTo(pad.l,y(2000)); ctx.lineTo(W-pad.r,y(2000)); ctx.stroke(); ctx.setLineDash([]);
-  // arm fill + line
-  ctx.beginPath(); ctx.moveTo(x(0), y(arm.gyro[0]));
-  for (let i=1;i<n;i++) ctx.lineTo(x(i), y(arm.gyro[i]));
-  ctx.lineTo(x(n-1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
-  ctx.fillStyle = "rgba(255,122,77,0.15)"; ctx.fill();
-  ctx.beginPath(); ctx.moveTo(x(0), y(arm.gyro[0]));
-  for (let i=1;i<n;i++) ctx.lineTo(x(i), y(arm.gyro[i]));
-  ctx.strokeStyle = "#ff7a4d"; ctx.lineWidth = 2; ctx.stroke();
-  // torso line
-  if (torso){ ctx.beginPath(); ctx.moveTo(x(0), y(torso.gyro[0]));
-    for (let i=1;i<torso.gyro.length;i++) ctx.lineTo(x(i), y(torso.gyro[i]));
-    ctx.strokeStyle = "#3fd0c9"; ctx.lineWidth = 1.6; ctx.stroke(); }
-  // peaks
-  ctx.fillStyle = "#ff7a4d";
-  for (const pi of arm.peaks){ if(pi>=0&&pi<n){ ctx.beginPath(); ctx.arc(x(pi), y(arm.gyro[pi]), 4, 0, 7); ctx.fill(); } }
+function avgTtp(p){
+  const xs=p.reps.map(r=>r.armTimeToPeakMs).filter(v=>v!=null&&!isNaN(v));
+  return xs.length?xs.reduce((s,v)=>s+v,0)/xs.length:0;
 }
 
-function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+function metricCard(o){
+  const c=o.v.color;
+  return `<div class="mcard">
+    <div class="top-line">
+      <span class="m-label">${o.label}</span>
+      <span class="chip" style="color:${c};background:${tone(c)}">${o.v.label}</span>
+    </div>
+    <div class="m-val num">${o.val}<span class="m-unit">${o.unit}</span></div>
+    <div class="m-mean num">${o.mean}</div>
+    ${rangeBar(o.range)}
+    <div class="m-explain">${o.explain}</div>
+  </div>`;
+}
+
+function rangeBar(rg){
+  const span=rg.max-rg.min;
+  const pct=v=>Math.max(0,Math.min(100,((v-rg.min)/span)*100));
+  const zoneL=pct(rg.a), zoneW=pct(rg.b)-pct(rg.a);
+  const mark=pct(rg.val);
+  const fillColor=rg.zoneColor;
+  return `<div class="range">
+    <div class="range-track">
+      <div class="range-zone" style="left:${zoneL}%;width:${zoneW}%;background:${fillColor}"></div>
+      <div class="range-marker" style="left:calc(${mark}% - 1px)"></div>
+    </div>
+    <div class="range-labels"><span>${rg.invert?'ideal':rg.min}</span><span>${rg.invert?'':'ideal'} ${rg.invert?'◀':'▶'}</span></div>
+  </div>`;
+}
+
+function renderKineticChain(p){
+  const paired=p.reps.filter(r=>r.lagMs!=null);
+  if(!paired.length) return "";
+  const maxL=Math.max(220,...paired.map(r=>Math.abs(r.lagMs)));
+  const pct=v=>Math.max(0,Math.min(100,(Math.abs(v)/maxL)*46));
+  // ideal zone +10..+150 ms a la derecha del centro
+  const idealL=50, idealW=(150/maxL)*46;
+  return `<div class="sec"><h3>Cadena cinética</h3><span class="hint">tronco → brazo</span></div>
+  <div class="card">
+    <p class="desc">El tronco debe girar <b>antes</b> que el brazo. Verde = orden correcto (tronco lidera 10–150 ms). A la izquierda del centro, el brazo se adelantó.</p>
+    ${paired.map(r=>{
+      const ok=r.sequencingOk, c=ok?"var(--good)":"var(--bad)";
+      const w=pct(r.lagMs), pos=r.lagMs>=0?50:50-w;
+      return `<div class="kc-rep">
+        <div class="kc-idx">${r.index+1}</div>
+        <div class="kc-track">
+          <div class="kc-ideal" style="left:${idealL}%;width:${idealW}%"></div>
+          <div class="kc-mid"></div>
+          <div class="kc-bar" style="left:${pos}%;width:${Math.max(w,4)}%;background:${tone(c)};color:${c};border:1px solid ${c}">${r.lagMs>0?'+':''}${r.lagMs}</div>
+        </div>
+        <div class="kc-val" style="color:${c}">${ok?'✓':'✗'}</div>
+      </div>`;
+    }).join("")}
+  </div>`;
+}
+
+function renderRep(r){
+  const c=r.armPeakDps>=2000?"var(--good)":r.armPeakDps>=1200?"var(--warn)":"var(--faint)";
+  return `<div class="rep">
+    <div class="rep-head">
+      <div class="rep-no">${r.index+1}</div>
+      <div style="flex:1">
+        <div class="rep-title">Remate ${r.index+1}</div>
+        <div class="rep-sub">${r.armShape?cap(r.armShape):'gesto'} · ${r.armSaturated?'pico saturado':'pico medido'}</div>
+      </div>
+    </div>
+    <div class="rep-stats">
+      <div class="rstat"><div class="rk">Brazo</div><div class="rv num" style="color:${c}">${Math.round(r.armPeakDps)}${r.armSaturated?'▲':''}</div></div>
+      <div class="rstat"><div class="rk">Tronco</div><div class="rv num">${r.torsoPeakDps??'—'}</div></div>
+      <div class="rstat"><div class="rk">Lag</div><div class="rv num">${r.lagMs!=null?(r.lagMs>0?'+':'')+r.lagMs:'—'}</div></div>
+      ${r.jumpHeightCm!=null?`<div class="rstat"><div class="rk">Salto</div><div class="rv num">${r.jumpHeightCm}cm</div></div>`:''}
+    </div>
+    <div class="rep-note">${repNote(r)}</div>
+  </div>`;
+}
+
+/* ---------- gráfica ---------- */
+function drawChart(traces){
+  const cv=$("chart"); if(!cv) return;
+  const dpr=window.devicePixelRatio||1;
+  const W=cv.clientWidth||340, H=300;
+  cv.width=W*dpr; cv.height=H*dpr; cv.style.height=H+"px";
+  const ctx=cv.getContext("2d"); ctx.scale(dpr,dpr);
+  const pad={l:38,r:8,t:14,b:18};
+  const arm=traces.arm, torso=traces.torso;
+  const maxY=Math.max(2200,...arm.gyro,...(torso?torso.gyro:[0]));
+  const n=arm.gyro.length;
+  const X=i=>pad.l+(i/(n-1))*(W-pad.l-pad.r);
+  const Y=v=>pad.t+(1-v/maxY)*(H-pad.t-pad.b);
+  ctx.clearRect(0,0,W,H);
+  // saturation zone (above 2000)
+  ctx.fillStyle="rgba(255,107,107,.07)"; ctx.fillRect(pad.l,Y(maxY),W-pad.l-pad.r,Y(2000)-Y(maxY));
+  // grid
+  ctx.font="10px -apple-system,sans-serif"; ctx.textAlign="left";
+  for(let g=0;g<=maxY;g+=500){const y=Y(g);ctx.strokeStyle="rgba(255,255,255,.05)";ctx.lineWidth=1;
+    ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
+    ctx.fillStyle="#5C6A85";ctx.fillText(g,2,y+3);}
+  // saturation line
+  ctx.strokeStyle="rgba(255,107,107,.55)";ctx.setLineDash([5,4]);ctx.lineWidth=1.2;
+  ctx.beginPath();ctx.moveTo(pad.l,Y(2000));ctx.lineTo(W-pad.r,Y(2000));ctx.stroke();ctx.setLineDash([]);
+  const smooth=(pts)=>{ // catmull-rom -> path
+    ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
+    for(let i=0;i<pts.length-1;i++){const p0=pts[i-1]||pts[i],p1=pts[i],p2=pts[i+1],p3=pts[i+2]||p2;
+      const c1x=p1[0]+(p2[0]-p0[0])/6,c1y=p1[1]+(p2[1]-p0[1])/6;
+      const c2x=p2[0]-(p3[0]-p1[0])/6,c2y=p2[1]-(p3[1]-p1[1])/6;
+      ctx.bezierCurveTo(c1x,c1y,c2x,c2y,p2[0],p2[1]);}
+  };
+  const armPts=arm.gyro.map((v,i)=>[X(i),Y(v)]);
+  // arm fill gradient
+  smooth(armPts);ctx.lineTo(X(n-1),Y(0));ctx.lineTo(X(0),Y(0));ctx.closePath();
+  const grad=ctx.createLinearGradient(0,pad.t,0,H);
+  grad.addColorStop(0,"rgba(255,106,61,.45)");grad.addColorStop(1,"rgba(255,106,61,0)");
+  ctx.fillStyle=grad;ctx.fill();
+  // arm line
+  smooth(armPts);ctx.strokeStyle="#FF7A45";ctx.lineWidth=2.4;ctx.lineJoin="round";ctx.stroke();
+  // torso line
+  if(torso){const tp=torso.gyro.map((v,i)=>[X(i*(n-1)/(torso.gyro.length-1)),Y(v)]);
+    smooth(tp);ctx.strokeStyle="#27D3C2";ctx.lineWidth=1.8;ctx.stroke();}
+  // peaks
+  for(const pi of arm.peaks){if(pi>=0&&pi<n){const x=X(pi),y=Y(arm.gyro[pi]);
+    ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fillStyle="#FF7A45";ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.strokeStyle="rgba(255,255,255,.5)";ctx.lineWidth=1.5;ctx.stroke();}}
+}
+
+/* ---------- ring SVG ---------- */
+function ringSVG(val,max,size,color,centerBig,centerSmall){
+  const r=(size-12)/2, c=2*Math.PI*r, off=c*(1-Math.max(0,Math.min(1,val/max)));
+  return `<div class="ring" style="width:${size}px;height:${size}px">
+    <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="9"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
+        stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/>
+    </svg>
+    <div class="center"><div><div class="big num">${centerBig}</div><div class="small">${centerSmall}</div></div></div>
+  </div>`;
+}
+
+function cap(s){return s? s.charAt(0).toUpperCase()+s.slice(1):s;}
+function escapeHtml(s){return String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c]));}
 
 init();
 </script>
