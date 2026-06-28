@@ -2,13 +2,13 @@
   "expo": {
     "name": "RemateVoley",
     "slug": "remate-voley",
-    "version": "0.3.0",
+    "version": "0.4.0",
+    "userInterfaceStyle": "light",
     "orientation": "portrait",
     "scheme": "rematevoley",
-    "userInterfaceStyle": "dark",
     "newArchEnabled": false,
     "splash": {
-      "backgroundColor": "#0b1120",
+      "backgroundColor": "#F4F6FB",
       "resizeMode": "contain"
     },
     "ios": {

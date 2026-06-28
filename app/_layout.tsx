@@ -5,13 +5,14 @@ import { theme } from "@/theme";
 export default function RootLayout() {
   return (
     <>
-      <StatusBar style="light" />
+      <StatusBar style="dark" />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: theme.ground },
+          headerStyle: { backgroundColor: theme.bg },
           headerTintColor: theme.text,
-          headerTitleStyle: { fontWeight: "700" },
-          contentStyle: { backgroundColor: theme.ground },
+          headerTitleStyle: { fontWeight: "800" },
+          headerShadowVisible: false,
+          contentStyle: { backgroundColor: theme.bg },
         }}
       >
         <Stack.Screen name="index" options={{ title: "RemateVoley" }} />
