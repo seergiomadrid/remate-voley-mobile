@@ -118,57 +118,82 @@ class RemateBle {
     this.scanning = true;
     this.emit();
 
-    this.manager.startDeviceScan([NUS_SERVICE], null, (err, device) => {
-      if (err) {
-        this.error = err.message;
-        this.scanning = false;
-        this.emit();
-        return;
-      }
-      if (!device?.name) return;
-      const board = device.name === DEVICE_ARM ? this.boards.ARM : device.name === DEVICE_TORSO ? this.boards.TORSO : null;
-      if (board && !board.device) {
-        this.connectBoard(board, device);
-      }
-      if (this.boards.ARM.device && this.boards.TORSO.device) {
+    // FASE 1 — Escanear y RECOLECTAR los dispositivos objetivo (sin conectar
+    // todavía). En iOS no se debe conectar mientras se escanea: provoca que la
+    // segunda placa no llegue a conectar.
+    const found = new Map<"ARM" | "TORSO", Device>();
+    await new Promise<void>((resolve) => {
+      let done = false;
+      const finish = () => {
+        if (done) return;
+        done = true;
         this.manager.stopDeviceScan();
-        this.scanning = false;
-        this.emit();
-      }
+        resolve();
+      };
+      this.manager.startDeviceScan([NUS_SERVICE], null, (err, device) => {
+        if (err) {
+          this.error = err.message;
+          finish();
+          return;
+        }
+        if (!device?.name) return;
+        if (device.name === DEVICE_ARM && !found.has("ARM")) found.set("ARM", device);
+        else if (device.name === DEVICE_TORSO && !found.has("TORSO")) found.set("TORSO", device);
+        if (found.has("ARM") && found.has("TORSO")) finish();
+      });
+      // Tope de 12 s aunque falte alguna placa.
+      setTimeout(finish, 12000);
     });
 
-    // Detener el escaneo tras 12 s aunque falte alguna placa.
-    setTimeout(() => {
-      if (this.scanning) {
-        this.manager.stopDeviceScan();
-        this.scanning = false;
-        this.emit();
+    this.scanning = false;
+    this.emit();
+
+    // FASE 2 — Conectar las placas encontradas SECUENCIALMENTE (una espera a la
+    // otra), con reintentos. Es la forma fiable en iOS.
+    for (const key of ["ARM", "TORSO"] as const) {
+      const device = found.get(key);
+      const board = this.boards[key];
+      if (device && !board.device) {
+        await this.connectBoard(board, device);
       }
-    }, 12000);
+    }
+
+    if (found.size === 0) {
+      this.error = "No se encontró ningún sensor. Comprueba que están encendidos y cerca.";
+      this.emit();
+    }
   }
 
-  private async connectBoard(board: Board, device: Device) {
-    try {
-      board.device = device;
-      const connected = await device.connect({ requestMTU: 247 });
-      await connected.discoverAllServicesAndCharacteristics();
-      board.state.connected = true;
-      this.emit();
-
-      connected.onDisconnected(() => {
-        board.state.connected = false;
-        board.device = null;
+  private async connectBoard(board: Board, device: Device, attempts = 3): Promise<void> {
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+      try {
+        const connected = await device.connect({ requestMTU: 247 });
+        board.device = connected;
+        await connected.discoverAllServicesAndCharacteristics();
+        board.state.connected = true;
+        this.error = undefined;
         this.emit();
-      });
 
-      connected.monitorCharacteristicForService(NUS_SERVICE, NUS_TX, (err, char) => {
-        if (err || !char?.value) return;
-        this.onData(board, base64ToBytes(char.value));
-      });
-    } catch (e: any) {
-      board.device = null;
-      this.error = `No se pudo conectar a ${board.deviceName}: ${e?.message ?? e}`;
-      this.emit();
+        connected.onDisconnected(() => {
+          board.state.connected = false;
+          board.device = null;
+          this.emit();
+        });
+
+        connected.monitorCharacteristicForService(NUS_SERVICE, NUS_TX, (err, char) => {
+          if (err || !char?.value) return;
+          this.onData(board, base64ToBytes(char.value));
+        });
+        return; // conectado con éxito
+      } catch (e: any) {
+        board.device = null;
+        if (attempt < attempts) {
+          await new Promise((r) => setTimeout(r, 600)); // breve espera y reintento
+        } else {
+          this.error = `No se pudo conectar a ${board.deviceName}: ${e?.message ?? e}`;
+          this.emit();
+        }
+      }
     }
   }
 
