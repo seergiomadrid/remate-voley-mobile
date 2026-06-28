@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>RemateVoley · Panel en la nube</title>
+<style>
+  :root {
+    --ground: #0b1120;
+    --panel: #131c2e;
+    --panel2: #0f1726;
+    --line: #233047;
+    --line-soft: #1a2438;
+    --text: #e8eef7;
+    --muted: #8da2bd;
+    --faint: #5f7290;
+    --arm: #ff7a4d;
+    --torso: #3fd0c9;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--ground); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 24px 18px 60px; }
+  header { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; margin-bottom: 20px; }
+  h1 { font-size: 22px; margin: 0; letter-spacing: -0.3px; }
+  .brand { color: var(--arm); }
+  .sub { color: var(--muted); font-size: 13px; }
+  button {
+    font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel); color: var(--text); padding: 8px 14px;
+  }
+  button:hover { border-color: var(--arm); }
+  button.primary { background: var(--arm); color: #0b1120; font-weight: 700; border: none; }
+  input {
+    font: inherit; background: var(--panel2); color: var(--text);
+    border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; width: 100%;
+  }
+  .config { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; margin-bottom: 20px; }
+  .config .field { margin-bottom: 12px; }
+  .config label { display: block; font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); font-weight: 700; margin-bottom: 6px; }
+  .layout { display: grid; grid-template-columns: 280px 1fr; gap: 18px; }
+  @media (max-width: 760px) { .layout { grid-template-columns: 1fr; } }
+  .list { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; align-self: start; }
+  .list h2 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 0; padding: 14px 14px 8px; }
+  .sess { padding: 12px 14px; border-top: 1px solid var(--line-soft); cursor: pointer; }
+  .sess:hover { background: var(--panel2); }
+  .sess.active { background: var(--panel2); box-shadow: inset 3px 0 0 var(--arm); }
+  .sess .name { font-weight: 600; font-size: 14px; }
+  .sess .date { color: var(--faint); font-size: 12px; margin-top: 2px; }
+  .sess .chips { display: flex; gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+  .chip { font-size: 11px; color: var(--muted); background: var(--ground); border: 1px solid var(--line-soft); border-radius: 6px; padding: 2px 7px; }
+  .panel { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; margin-bottom: 16px; }
+  .panel h3 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); margin: 0 0 10px; font-weight: 700; }
+  .kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .kpi { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 14px; }
+  .kpi .k-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; color: var(--muted); font-weight: 700; }
+  .kpi .k-val { font-size: 28px; font-weight: 800; margin-top: 4px; }
+  .kpi .k-unit { font-size: 14px; color: var(--muted); font-weight: 600; }
+  .kpi .k-sub { font-size: 12px; color: var(--faint); margin-top: 2px; }
+  .k-bar { height: 3px; border-radius: 2px; margin-top: 10px; opacity: 0.85; }
+  canvas { width: 100%; height: 280px; display: block; }
+  .legend { display: flex; gap: 16px; margin-top: 8px; font-size: 12px; color: var(--muted); align-items: center; }
+  .legend i { display: inline-block; width: 14px; height: 4px; border-radius: 2px; margin-right: 6px; vertical-align: middle; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: right; color: var(--muted); font-size: 11px; text-transform: uppercase; font-weight: 700; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  td { text-align: right; padding: 9px 6px; border-bottom: 1px solid var(--line-soft); }
+  .tip { background: var(--panel2); border-left: 3px solid var(--torso); border-radius: 8px; padding: 10px 12px; margin-bottom: 8px; }
+  .tip.good { border-left-color: var(--good); }
+  .tip.warn { border-left-color: var(--warn); }
+  .tip .t-cat { font-size: 10px; text-transform: uppercase; letter-spacing: 1px; color: var(--faint); font-weight: 700; }
+  .tip .t-msg { font-size: 13.5px; margin-top: 2px; }
+  .seq-row { display: flex; align-items: center; gap: 10px; padding: 7px 0; }
+  .seq-idx { color: var(--muted); width: 34px; font-size: 12px; }
+  .seq-track { flex: 1; height: 20px; background: var(--panel2); border: 1px solid var(--line-soft); border-radius: 6px; position: relative; }
+  .seq-mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--line); }
+  .seq-bar { position: absolute; top: 4px; height: 11px; border-radius: 3px; border: 1px solid; }
+  .seq-val { width: 70px; text-align: right; font-size: 12.5px; font-weight: 700; }
+  .empty { color: var(--faint); text-align: center; padding: 50px 20px; }
+  .err { color: var(--bad); font-size: 13px; margin-top: 8px; }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .muted { color: var(--muted); font-size: 13px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1><span class="brand">Remate</span>Voley</h1>
+    <span class="sub">Panel en la nube · tus sesiones de remate</span>
+  </header>
+
+  <div id="config" class="config" hidden>
+    <div class="field">
+      <label>URL del proyecto Supabase</label>
+      <input id="cfgUrl" placeholder="https://xxxx.supabase.co" autocomplete="off" />
+    </div>
+    <div class="field">
+      <label>Clave pública (anon key)</label>
+      <input id="cfgKey" placeholder="eyJ..." autocomplete="off" />
+    </div>
+    <div class="row">
+      <button class="primary" onclick="saveConfig()">Conectar</button>
+      <span class="muted">Se guarda solo en este navegador.</span>
+    </div>
+    <div id="cfgErr" class="err"></div>
+  </div>
+
+  <div class="row" id="topbar" style="margin-bottom:16px" hidden>
+    <button onclick="loadList()">↻ Actualizar</button>
+    <button onclick="forgetConfig()">Cambiar proyecto</button>
+    <span id="status" class="muted"></span>
+  </div>
+
+  <div class="layout" id="main" hidden>
+    <div class="list">
+      <h2>Sesiones</h2>
+      <div id="sessions"></div>
+    </div>
+    <div id="detail">
+      <div class="empty">Selecciona una sesión de la izquierda.</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const LS_URL = "rv_supabase_url", LS_KEY = "rv_supabase_key";
+// Conexión por defecto (de fábrica). La publishable key es pública por diseño.
+const DEFAULT_URL = "https://jbwdhkcbyxqoeqgwxcdy.supabase.co";
+const DEFAULT_KEY = "sb_publishable_i0Ejy43YRsWmjxamqE8CPQ_YUqL-O0A";
+let cfg = { url: localStorage.getItem(LS_URL) || DEFAULT_URL, key: localStorage.getItem(LS_KEY) || DEFAULT_KEY };
+
+function el(id){ return document.getElementById(id); }
+function show(id, on){ el(id).hidden = !on; }
+
+function init(){
+  if (cfg.url && cfg.key) { showApp(); loadList(); }
+  else { show("config", true); }
+}
+
+function saveConfig(){
+  const url = el("cfgUrl").value.trim().replace(/\/+$/, "");
+  const key = el("cfgKey").value.trim();
+  if (!url.includes("supabase.co") || key.length < 20) {
+    el("cfgErr").textContent = "Revisa la URL y la clave.";
+    return;
+  }
+  cfg = { url, key };
+  localStorage.setItem(LS_URL, url);
+  localStorage.setItem(LS_KEY, key);
+  showApp(); loadList();
+}
+
+function forgetConfig(){
+  localStorage.removeItem(LS_URL); localStorage.removeItem(LS_KEY);
+  cfg = { url: "", key: "" };
+  show("main", false); show("topbar", false);
+  el("cfgUrl").value = ""; el("cfgKey").value = "";
+  show("config", true);
+}
+
+function showApp(){ show("config", false); show("topbar", true); show("main", true); }
+
+async function api(path){
+  const res = await fetch(cfg.url + "/rest/v1/" + path, {
+    headers: { apikey: cfg.key, Authorization: "Bearer " + cfg.key },
+  });
+  if (!res.ok) throw new Error("Error " + res.status + ": " + (await res.text().catch(()=>"")));
+  return res.json();
+}
+
+async function loadList(){
+  el("status").textContent = "Cargando…";
+  try {
+    const rows = await api("sessions?select=id,name,created_at,started_at,rep_count,quality_index,arm_peak_best_dps,sequencing_ok_pct,session_load&order=created_at.desc");
+    el("status").textContent = rows.length + " sesiones";
+    renderList(rows);
+  } catch (e) {
+    el("status").textContent = "";
+    el("sessions").innerHTML = '<div class="sess"><div class="err">' + e.message + '</div></div>';
+  }
+}
+
+function renderList(rows){
+  if (!rows.length) { el("sessions").innerHTML = '<div class="sess muted">Aún no has subido ninguna sesión.</div>'; return; }
+  el("sessions").innerHTML = rows.map(r => `
+    <div class="sess" data-id="${r.id}" onclick="openSession('${r.id}', this)">
+      <div class="name">${escapeHtml(r.name || "Sesión")}</div>
+      <div class="date">${new Date(r.created_at).toLocaleString()}</div>
+      <div class="chips">
+        <span class="chip">Calidad ${Math.round(r.quality_index||0)}</span>
+        <span class="chip">${r.rep_count||0} remates</span>
+        <span class="chip">Pico ${Math.round(r.arm_peak_best_dps||0)}°/s</span>
+      </div>
+    </div>`).join("");
+}
+
+async function openSession(id, node){
+  document.querySelectorAll(".sess").forEach(s => s.classList.remove("active"));
+  if (node) node.classList.add("active");
+  el("detail").innerHTML = '<div class="empty">Cargando…</div>';
+  try {
+    const rows = await api("sessions?id=eq." + id + "&select=name,created_at,payload");
+    if (!rows.length) { el("detail").innerHTML = '<div class="empty">No encontrada.</div>'; return; }
+    renderDetail(rows[0].name, rows[0].payload);
+  } catch (e) {
+    el("detail").innerHTML = '<div class="empty err">' + e.message + '</div>';
+  }
+}
+
+function sev(kind, v){
+  if (kind === "quality") return v >= 70 ? "good" : v >= 45 ? "warn" : "bad";
+  if (kind === "seq") return v >= 60 ? "good" : v >= 30 ? "warn" : "bad";
+  if (kind === "cv") return v <= 15 ? "good" : v <= 30 ? "warn" : "bad";
+  return "muted";
+}
+const COL = { good: "var(--good)", warn: "var(--warn)", bad: "var(--bad)", muted: "var(--text)" };
+
+function renderDetail(name, p){
+  if (!p || !p.aggregates || !p.reps || !p.traces) {
+    el("detail").innerHTML = '<div class="empty">Esta sesión no tiene datos completos para mostrar (sube una sesión real desde la app).</div>';
+    return;
+  }
+  const a = p.aggregates;
+  const paired = p.reps.filter(r => r.lagMs != null);
+  const maxLag = Math.max(120, ...paired.map(r => Math.abs(r.lagMs)));
+  const kpi = (label,val,unit,sub,color) => `
+    <div class="kpi"><div class="k-label">${label}</div>
+      <div class="k-val">${val}<span class="k-unit"> ${unit}</span></div>
+      <div class="k-sub">${sub}</div>
+      <div class="k-bar" style="background:${color}"></div></div>`;
+
+  el("detail").innerHTML = `
+    <div class="panel" style="display:flex;justify-content:space-between;align-items:baseline;flex-wrap:wrap;gap:8px">
+      <div><strong style="font-size:16px">${escapeHtml(name)}</strong>
+      <div class="muted">${new Date(p.startedAtMs).toLocaleString()} · ${a.repCount} remates · sync ${p.clockOffsetMs} ms</div></div>
+    </div>
+    <div class="kpis">
+      ${kpi("Calidad", Math.round(a.qualityIndex), "", "0–100", COL[sev("quality",a.qualityIndex)])}
+      ${kpi("Pico de brazo", Math.round(a.armPeakBestDps), "°/s", "media "+Math.round(a.armPeakMeanDps), "var(--arm)")}
+      ${kpi("Secuencia OK", Math.round(a.sequencingOkPct), "%", "lag "+(a.sequencingMeanLagMs!=null?Math.round(a.sequencingMeanLagMs):"—")+" ms", COL[sev("seq",a.sequencingOkPct)])}
+      ${kpi("Consistencia (CV)", Math.round(a.armConsistencyCvPct), "%", "menor es mejor", COL[sev("cv",a.armConsistencyCvPct)])}
+      ${kpi("Carga", (a.load).toFixed(1), "", a.fatigueDropPct!=null?("fatiga "+(a.fatigueDropPct>0?"↓":"↑")+Math.abs(Math.round(a.fatigueDropPct))+"%"):"—", "var(--text)")}
+    </div>
+    <div class="panel">
+      <h3>Velocidad angular</h3>
+      <canvas id="chart"></canvas>
+      <div class="legend"><span><i style="background:var(--arm)"></i>Brazo</span>${p.traces.torso?'<span><i style="background:var(--torso)"></i>Torso</span>':''}<span><i style="background:var(--warn)"></i>saturación 2000°/s</span></div>
+    </div>
+    ${paired.length ? `<div class="panel"><h3>Secuencia torso → brazo</h3>${paired.map(r=>{
+      const ok=r.sequencingOk; const w=(Math.abs(r.lagMs)/maxLag)*46; const c=ok?"var(--good)":"var(--bad)";
+      return `<div class="seq-row"><span class="seq-idx">#${r.index+1}</span>
+        <div class="seq-track"><div class="seq-mid"></div>
+        <div class="seq-bar" style="left:${r.lagMs>=0?50:50-w}%;width:${w}%;background:${c}33;border-color:${c}"></div></div>
+        <span class="seq-val" style="color:${c}">${r.lagMs>0?"+":""}${r.lagMs} ms</span></div>`;
+    }).join("")}</div>` : ""}
+    <div class="panel"><h3>Consejos</h3>${p.tips.map(t=>`
+      <div class="tip ${t.severity==='good'?'good':t.severity==='warn'?'warn':''}">
+        <div class="t-cat">${escapeHtml(t.category)}</div><div class="t-msg">${escapeHtml(t.message)}</div></div>`).join("")}</div>
+    <div class="panel"><h3>Remates</h3>
+      <table><thead><tr><th>#</th><th>Brazo</th><th>Torso</th><th>Lag</th><th>Sec</th></tr></thead><tbody>
+      ${p.reps.map(r=>`<tr><td>${r.index+1}</td><td>${Math.round(r.armPeakDps)}${r.armSaturated?" ▲":""}</td>
+        <td>${r.torsoPeakDps??"—"}</td><td>${r.lagMs??"—"}</td>
+        <td style="color:${r.lagMs==null?'var(--faint)':r.sequencingOk?'var(--good)':'var(--faint)'}">${r.lagMs==null?"—":r.sequencingOk?"✓":"✗"}</td></tr>`).join("")}
+      </tbody></table>
+    </div>`;
+  drawChart(p.traces);
+}
+
+function drawChart(traces){
+  const canvas = el("chart");
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.clientWidth, H = 280;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  const ctx = canvas.getContext("2d"); ctx.scale(dpr, dpr);
+  const pad = { l: 40, r: 10, t: 10, b: 20 };
+  const arm = traces.arm, torso = traces.torso;
+  const maxY = Math.max(2200, ...arm.gyro, ...(torso?torso.gyro:[0]));
+  const n = arm.t.length;
+  const x = i => pad.l + (i/(n-1)) * (W-pad.l-pad.r);
+  const y = v => pad.t + (1 - v/maxY) * (H-pad.t-pad.b);
+  ctx.clearRect(0,0,W,H);
+  // grid
+  ctx.strokeStyle = "#1a2438"; ctx.fillStyle = "#5f7290"; ctx.font = "10px sans-serif"; ctx.lineWidth = 1;
+  for (let g=0; g<=maxY; g+=500){ const yy=y(g); ctx.beginPath(); ctx.moveTo(pad.l,yy); ctx.lineTo(W-pad.r,yy); ctx.stroke(); ctx.fillText(g, 4, yy+3); }
+  // saturation line
+  ctx.strokeStyle = "#fbbf24"; ctx.setLineDash([5,4]); ctx.beginPath(); ctx.moveTo(pad.l,y(2000)); ctx.lineTo(W-pad.r,y(2000)); ctx.stroke(); ctx.setLineDash([]);
+  // arm fill + line
+  ctx.beginPath(); ctx.moveTo(x(0), y(arm.gyro[0]));
+  for (let i=1;i<n;i++) ctx.lineTo(x(i), y(arm.gyro[i]));
+  ctx.lineTo(x(n-1), y(0)); ctx.lineTo(x(0), y(0)); ctx.closePath();
+  ctx.fillStyle = "rgba(255,122,77,0.15)"; ctx.fill();
+  ctx.beginPath(); ctx.moveTo(x(0), y(arm.gyro[0]));
+  for (let i=1;i<n;i++) ctx.lineTo(x(i), y(arm.gyro[i]));
+  ctx.strokeStyle = "#ff7a4d"; ctx.lineWidth = 2; ctx.stroke();
+  // torso line
+  if (torso){ ctx.beginPath(); ctx.moveTo(x(0), y(torso.gyro[0]));
+    for (let i=1;i<torso.gyro.length;i++) ctx.lineTo(x(i), y(torso.gyro[i]));
+    ctx.strokeStyle = "#3fd0c9"; ctx.lineWidth = 1.6; ctx.stroke(); }
+  // peaks
+  ctx.fillStyle = "#ff7a4d";
+  for (const pi of arm.peaks){ if(pi>=0&&pi<n){ ctx.beginPath(); ctx.arc(x(pi), y(arm.gyro[pi]), 4, 0, 7); ctx.fill(); } }
+}
+
+function escapeHtml(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+
+init();
+</script>
+</body>
+</html>
