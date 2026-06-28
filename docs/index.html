@@ -6,23 +6,24 @@
 <title>RemateVoley · Panel</title>
 <style>
   :root{
-    --bg:#0A0E18; --bg2:#0E1322;
-    --surface:#141A2B; --surface2:#1B2236; --raise:#222C44;
-    --hair:rgba(255,255,255,.06); --hair2:rgba(255,255,255,.12);
-    --text:#EAF0FB; --muted:#93A1BC; --faint:#5C6A85;
-    --spike:#FF6A3D; --spike2:#FFA24B;
-    --chain:#27D3C2; --violet:#7C83FF;
-    --good:#36D399; --warn:#FFB020; --bad:#FF6B6B;
+    --bg:#F4F6FB; --bg2:#EBEFF6;
+    --surface:#FFFFFF; --surface2:#F4F6FB; --raise:#FFFFFF;
+    --hair:rgba(17,27,46,.08); --hair2:rgba(17,27,46,.15);
+    --text:#141C2E; --muted:#5D6B86; --faint:#94A0B6;
+    --spike:#F8623A; --spike2:#FF8A3D;
+    --chain:#0FAE9F; --violet:#6A5BE0;
+    --good:#15A65B; --warn:#E08A00; --bad:#E5484D;
     --r:22px; --r-sm:14px;
-    --shadow:0 18px 40px -20px rgba(0,0,0,.7);
+    --shadow:0 10px 30px -14px rgba(17,27,46,.18);
+    --shadow-sm:0 4px 14px -8px rgba(17,27,46,.16);
     --mono:"SF Mono",ui-monospace,"Roboto Mono",Menlo,monospace;
   }
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
   html,body{margin:0;background:var(--bg);color:var(--text);
     font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased;}
   body{background:
-     radial-gradient(120% 80% at 85% -10%, rgba(255,106,61,.10), transparent 55%),
-     radial-gradient(90% 70% at -10% 0%, rgba(39,211,194,.07), transparent 50%),
+     radial-gradient(120% 80% at 88% -8%, rgba(248,98,58,.10), transparent 52%),
+     radial-gradient(90% 70% at -10% 2%, rgba(15,174,159,.08), transparent 48%),
      var(--bg);
      background-attachment:fixed; min-height:100vh;}
   .wrap{max-width:760px;margin:0 auto;padding:max(16px,env(safe-area-inset-top)) 16px 80px;}
@@ -57,7 +58,7 @@
 
   /* hero */
   .hero{position:relative;background:
-      linear-gradient(160deg, rgba(255,106,61,.16), rgba(20,26,43,.2) 45%), var(--surface);
+      linear-gradient(160deg, rgba(248,98,58,.13), rgba(255,138,61,.04) 55%), var(--surface);
     border:1px solid var(--hair);border-radius:26px;padding:20px;margin-bottom:14px;overflow:hidden;box-shadow:var(--shadow);}
   .hero .glow{position:absolute;right:-40px;top:-50px;width:200px;height:200px;border-radius:50%;
     background:radial-gradient(circle,rgba(255,106,61,.35),transparent 70%);filter:blur(8px);}
@@ -67,7 +68,7 @@
   .hero h2{margin:10px 0 2px;font-size:21px;font-weight:800;letter-spacing:-.3px;line-height:1.2;}
   .hero p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.5;}
   .hero-meta{margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;position:relative;}
-  .meta-chip{font-size:12px;color:var(--muted);background:rgba(255,255,255,.04);border:1px solid var(--hair);border-radius:10px;padding:6px 10px;}
+  .meta-chip{font-size:12px;color:var(--muted);background:rgba(17,27,46,.04);border:1px solid var(--hair);border-radius:10px;padding:6px 10px;}
   .meta-chip b{color:var(--text);font-weight:700;}
 
   /* section heading */
@@ -78,7 +79,7 @@
   /* metric cards grid */
   .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
   @media(max-width:480px){.grid{grid-template-columns:1fr;}}
-  .mcard{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;}
+  .mcard{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:16px;position:relative;overflow:hidden;box-shadow:var(--shadow-sm);}
   .mcard .top-line{display:flex;justify-content:space-between;align-items:flex-start;gap:8px;}
   .mcard .m-label{font-size:11px;text-transform:uppercase;letter-spacing:.7px;color:var(--muted);font-weight:700;}
   .mcard .m-val{font-size:30px;font-weight:850;letter-spacing:-1px;margin-top:8px;line-height:1;}
@@ -104,7 +105,7 @@
   .ring .small{font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-top:3px;}
 
   /* panel/card */
-  .card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:16px;margin-bottom:12px;}
+  .card{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:16px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
   .card h4{font-size:13px;margin:0 0 3px;font-weight:800;}
   .card .desc{font-size:12.5px;color:var(--muted);margin:0 0 14px;line-height:1.5;}
 
@@ -124,7 +125,7 @@
   .kc-val{flex:0 0 auto;width:70px;text-align:right;font-size:13px;font-weight:800;}
 
   /* rep analysis cards */
-  .rep{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:14px;margin-bottom:10px;}
+  .rep{background:var(--surface);border:1px solid var(--hair);border-radius:var(--r);padding:14px;margin-bottom:10px;box-shadow:var(--shadow-sm);}
   .rep-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
   .rep-no{width:34px;height:34px;border-radius:11px;display:grid;place-items:center;font-weight:850;font-size:15px;
     background:linear-gradient(135deg,rgba(255,106,61,.25),rgba(255,162,75,.15));color:var(--spike2);flex:0 0 auto;}
@@ -137,7 +138,7 @@
   .rep-note{font-size:13px;color:var(--muted);line-height:1.55;background:var(--bg2);border-radius:11px;padding:10px 12px;border-left:3px solid var(--spike);}
 
   /* tips / focus */
-  .focus{background:linear-gradient(160deg,rgba(124,131,255,.14),var(--surface));border:1px solid var(--hair);border-radius:var(--r);padding:18px;margin-bottom:12px;}
+  .focus{background:linear-gradient(160deg,rgba(106,91,224,.10),var(--surface) 60%);border:1px solid var(--hair);border-radius:var(--r);padding:18px;margin-bottom:12px;box-shadow:var(--shadow-sm);}
   .focus .ft{font-size:11px;text-transform:uppercase;letter-spacing:1px;color:var(--violet);font-weight:800;}
   .focus h4{margin:6px 0 4px;font-size:17px;font-weight:850;}
   .focus p{margin:0;color:var(--muted);font-size:13.5px;line-height:1.55;}
@@ -272,9 +273,12 @@ function verdict(kind,v){
   return {good:{key:"good",label:"Bien",color:"var(--good)"},warn:{key:"warn",label:"Mejorable",color:"var(--warn)"},bad:{key:"bad",label:"A trabajar",color:"var(--bad)"}}[k];
 }
 function chipStyle(c){return `color:${c};background:${c.replace('var(','rgba(').replace(')','')}`;} // fallback
-function tone(c){ // returns bg tint for a css var color
-  const map={"var(--good)":"rgba(54,211,153,.15)","var(--warn)":"rgba(255,176,32,.15)","var(--bad)":"rgba(255,107,107,.15)","var(--faint)":"rgba(92,106,133,.15)"};
-  return map[c]||"rgba(255,255,255,.08)";
+function tone(c){ // returns bg tint for a css var color (tema claro)
+  const map={
+    "var(--good)":"rgba(21,166,91,.12)","var(--warn)":"rgba(224,138,0,.14)",
+    "var(--bad)":"rgba(229,72,77,.12)","var(--faint)":"rgba(148,160,182,.16)",
+    "var(--violet)":"rgba(106,91,224,.12)","var(--spike)":"rgba(248,98,58,.12)"};
+  return map[c]||"rgba(17,27,46,.06)";
 }
 
 function repNote(r){
@@ -480,14 +484,14 @@ function drawChart(traces){
   const Y=v=>pad.t+(1-v/maxY)*(H-pad.t-pad.b);
   ctx.clearRect(0,0,W,H);
   // saturation zone (above 2000)
-  ctx.fillStyle="rgba(255,107,107,.07)"; ctx.fillRect(pad.l,Y(maxY),W-pad.l-pad.r,Y(2000)-Y(maxY));
+  ctx.fillStyle="rgba(229,72,77,.06)"; ctx.fillRect(pad.l,Y(maxY),W-pad.l-pad.r,Y(2000)-Y(maxY));
   // grid
   ctx.font="10px -apple-system,sans-serif"; ctx.textAlign="left";
-  for(let g=0;g<=maxY;g+=500){const y=Y(g);ctx.strokeStyle="rgba(255,255,255,.05)";ctx.lineWidth=1;
+  for(let g=0;g<=maxY;g+=500){const y=Y(g);ctx.strokeStyle="rgba(17,27,46,.06)";ctx.lineWidth=1;
     ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(W-pad.r,y);ctx.stroke();
-    ctx.fillStyle="#5C6A85";ctx.fillText(g,2,y+3);}
+    ctx.fillStyle="#94A0B6";ctx.fillText(g,2,y+3);}
   // saturation line
-  ctx.strokeStyle="rgba(255,107,107,.55)";ctx.setLineDash([5,4]);ctx.lineWidth=1.2;
+  ctx.strokeStyle="rgba(229,72,77,.5)";ctx.setLineDash([5,4]);ctx.lineWidth=1.2;
   ctx.beginPath();ctx.moveTo(pad.l,Y(2000));ctx.lineTo(W-pad.r,Y(2000));ctx.stroke();ctx.setLineDash([]);
   const smooth=(pts)=>{ // catmull-rom -> path
     ctx.beginPath();ctx.moveTo(pts[0][0],pts[0][1]);
@@ -500,17 +504,17 @@ function drawChart(traces){
   // arm fill gradient
   smooth(armPts);ctx.lineTo(X(n-1),Y(0));ctx.lineTo(X(0),Y(0));ctx.closePath();
   const grad=ctx.createLinearGradient(0,pad.t,0,H);
-  grad.addColorStop(0,"rgba(255,106,61,.45)");grad.addColorStop(1,"rgba(255,106,61,0)");
+  grad.addColorStop(0,"rgba(248,98,58,.34)");grad.addColorStop(1,"rgba(248,98,58,0)");
   ctx.fillStyle=grad;ctx.fill();
   // arm line
-  smooth(armPts);ctx.strokeStyle="#FF7A45";ctx.lineWidth=2.4;ctx.lineJoin="round";ctx.stroke();
+  smooth(armPts);ctx.strokeStyle="#F8623A";ctx.lineWidth=2.6;ctx.lineJoin="round";ctx.stroke();
   // torso line
   if(torso){const tp=torso.gyro.map((v,i)=>[X(i*(n-1)/(torso.gyro.length-1)),Y(v)]);
-    smooth(tp);ctx.strokeStyle="#27D3C2";ctx.lineWidth=1.8;ctx.stroke();}
+    smooth(tp);ctx.strokeStyle="#0FAE9F";ctx.lineWidth=2;ctx.stroke();}
   // peaks
   for(const pi of arm.peaks){if(pi>=0&&pi<n){const x=X(pi),y=Y(arm.gyro[pi]);
-    ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.fillStyle="#FF7A45";ctx.fill();
-    ctx.beginPath();ctx.arc(x,y,5,0,7);ctx.strokeStyle="rgba(255,255,255,.5)";ctx.lineWidth=1.5;ctx.stroke();}}
+    ctx.beginPath();ctx.arc(x,y,5.5,0,7);ctx.fillStyle="#F8623A";ctx.fill();
+    ctx.beginPath();ctx.arc(x,y,5.5,0,7);ctx.strokeStyle="#fff";ctx.lineWidth=2;ctx.stroke();}}
 }
 
 /* ---------- ring SVG ---------- */
@@ -518,7 +522,7 @@ function ringSVG(val,max,size,color,centerBig,centerSmall){
   const r=(size-12)/2, c=2*Math.PI*r, off=c*(1-Math.max(0,Math.min(1,val/max)));
   return `<div class="ring" style="width:${size}px;height:${size}px">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="9"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(17,27,46,.09)" stroke-width="9"/>
       <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
         stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/>
     </svg>
