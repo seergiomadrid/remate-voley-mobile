@@ -17,6 +17,7 @@ export default function RootLayout() {
         <Stack.Screen name="index" options={{ title: "RemateVoley" }} />
         <Stack.Screen name="sessions" options={{ title: "Historial" }} />
         <Stack.Screen name="session/[id]" options={{ title: "Sesión" }} />
+        <Stack.Screen name="cloud" options={{ title: "Nube", presentation: "modal" }} />
       </Stack>
     </>
   );

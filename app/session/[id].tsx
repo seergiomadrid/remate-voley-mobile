@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ScrollView, useWindowDimensions, ActivityIndicator } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { View, Text, StyleSheet, ScrollView, useWindowDimensions, ActivityIndicator, Pressable, Alert, Platform } from "react-native";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { getSessionPayload } from "@/db/database";
+import { getCloudConfig, uploadSession } from "@/cloud/supabase";
 import type { SessionPayload } from "@/analysis/persist";
 import { SignalChart } from "@/components/SignalChart";
 import { Gauge } from "@/components/Gauge";
@@ -10,8 +11,10 @@ import { theme, severity, sevColor } from "@/theme";
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { width } = useWindowDimensions();
+  const router = useRouter();
   const [p, setP] = useState<SessionPayload | null>(null);
   const [loading, setLoading] = useState(true);
+  const [uploading, setUploading] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -19,6 +22,39 @@ export default function SessionScreen() {
       setLoading(false);
     })();
   }, [id]);
+
+  async function doUpload(payload: SessionPayload, name: string) {
+    setUploading(true);
+    try {
+      await uploadSession(name, payload);
+      Alert.alert("Subido", `La sesión "${name}" está en la nube.`);
+    } catch (e: any) {
+      Alert.alert("No se pudo subir", e?.message ?? String(e));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function onUploadPress() {
+    if (!p) return;
+    const cfg = await getCloudConfig();
+    if (!cfg) {
+      Alert.alert("Configura la nube", "Primero introduce los datos de tu proyecto Supabase.", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Configurar", onPress: () => router.push("/cloud") },
+      ]);
+      return;
+    }
+    const defName = `Sesión ${new Date(p.startedAtMs).toLocaleDateString()}`;
+    if (Platform.OS === "ios") {
+      Alert.prompt("Nombre de la sesión", "¿Cómo quieres llamarla en la nube?", [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Subir", onPress: (name) => doUpload(p, (name && name.trim()) || defName) },
+      ], "plain-text", defName);
+    } else {
+      doUpload(p, defName);
+    }
+  }
 
   if (loading) return <ActivityIndicator color={theme.arm} style={{ marginTop: 40 }} />;
   if (!p) return <Text style={styles.empty}>Sesión no encontrada.</Text>;
@@ -35,6 +71,14 @@ export default function SessionScreen() {
       <Text style={styles.meta}>
         {new Date(p.startedAtMs).toLocaleString()} · {a.repCount} remates · sync {p.clockOffsetMs} ms
       </Text>
+
+      <Pressable style={styles.uploadBtn} onPress={onUploadPress} disabled={uploading}>
+        {uploading ? (
+          <ActivityIndicator color={theme.arm} />
+        ) : (
+          <Text style={styles.uploadText}>☁  Subir a la nube</Text>
+        )}
+      </Pressable>
 
       {/* KPIs */}
       <View style={styles.kpiRow}>
@@ -147,6 +191,8 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: theme.ground },
   meta: { color: theme.muted, fontSize: 13 },
+  uploadBtn: { backgroundColor: theme.panel, borderWidth: 1, borderColor: theme.arm, borderRadius: theme.radius, padding: 12, alignItems: "center" },
+  uploadText: { color: theme.arm, fontWeight: "700", fontSize: 14 },
   card: { backgroundColor: theme.panel, borderRadius: theme.radius, borderWidth: 1, borderColor: theme.line, padding: 14 },
   kpiRow: { flexDirection: "row", gap: 14 },
   kpi: { alignItems: "center", justifyContent: "center" },

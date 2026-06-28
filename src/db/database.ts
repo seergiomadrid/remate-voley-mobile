@@ -69,6 +69,10 @@ function getDb(): Promise<SQLite.SQLiteDatabase> {
         session_id INTEGER PRIMARY KEY,
         json TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS app_config (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      );
     `);
     return db;
   });
@@ -162,6 +166,17 @@ export async function getSessionLoads(): Promise<{ dateMs: number; load: number 
   const db = await getDb();
   const rows = await db.getAllAsync<any>(`SELECT started_at, session_load FROM sessions ORDER BY started_at ASC`);
   return rows.map((r) => ({ dateMs: r.started_at, load: r.session_load ?? 0 }));
+}
+
+export async function getConfig(key: string): Promise<string | null> {
+  const db = await getDb();
+  const row = await db.getFirstAsync<{ value: string }>(`SELECT value FROM app_config WHERE key = ?`, [key]);
+  return row ? row.value : null;
+}
+
+export async function setConfig(key: string, value: string): Promise<void> {
+  const db = await getDb();
+  await db.runAsync(`INSERT OR REPLACE INTO app_config (key, value) VALUES (?, ?)`, [key, value]);
 }
 
 export async function deleteSession(id: number): Promise<void> {
