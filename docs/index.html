@@ -148,6 +148,13 @@
   .tip-cat{font-size:10.5px;text-transform:uppercase;letter-spacing:.6px;color:var(--faint);font-weight:700;}
   .tip-msg{font-size:13.5px;line-height:1.5;margin-top:2px;}
 
+  .banner{background:rgba(21,166,91,.10);border:1px solid rgba(21,166,91,.3);color:#0d7a44;
+    border-radius:14px;padding:11px 14px;font-size:13px;font-weight:600;}
+  .apex{margin-top:6px;}
+  .apex-track{height:10px;border-radius:999px;background:var(--bg2);position:relative;}
+  .apex-ideal{position:absolute;left:35%;width:30%;top:0;bottom:0;background:rgba(21,166,91,.25);border-radius:999px;}
+  .apex-mark{position:absolute;top:-4px;width:4px;height:18px;border-radius:2px;background:var(--violet);margin-left:-2px;box-shadow:0 0 0 2px #fff;}
+  .apex-labels{display:flex;justify-content:space-between;margin-top:7px;font-size:10.5px;color:var(--faint);}
   .empty{color:var(--faint);text-align:center;padding:60px 20px;font-size:14px;}
   .err{color:var(--bad);font-size:13px;}
   .center-load{text-align:center;padding:50px;color:var(--muted);}
@@ -300,10 +307,81 @@ function buildFocus(a, reps){
   return {tag:"Vas muy bien",h:"Mantén y pule",p:"Tu técnica es sólida. Sigue afinando la consistencia y la sincronización para subir el último escalón."};
 }
 
+/* ---------- reconsolidación de remates (corrige sobreconteo de datos antiguos) ----------
+   Mismo criterio que el motor: umbral = max(1100, 0.55·pico_máx) + refractario 3 s. */
+function consolidateReps(reps){
+  if(!reps.length) return reps;
+  const mx=Math.max(...reps.map(r=>r.armPeakDps));
+  const thr=Math.max(1100, 0.55*mx);
+  const cands=reps.filter(r=>r.armPeakDps>=thr).sort((a,b)=>b.armPeakDps-a.armPeakDps);
+  const kept=[];
+  for(const r of cands){ if(kept.every(k=>Math.abs(r.timeMs-k.timeMs)>3000)) kept.push(r); }
+  kept.sort((a,b)=>a.timeMs-b.timeMs);
+  return kept.map((r,i)=>({...r,index:i}));
+}
+const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
+const stddev=a=>{const m=avg(a);return a.length?Math.sqrt(avg(a.map(v=>(v-m)**2))):0;};
+const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
+function recompute(reps){
+  const pk=reps.map(r=>r.armPeakDps);
+  const best=Math.max(...pk), meanP=avg(pk), cv=meanP>0?stddev(pk)/meanP*100:0;
+  const paired=reps.filter(r=>r.lagMs!=null);
+  const okPct=paired.length?paired.filter(r=>r.sequencingOk).length/paired.length*100:0;
+  const meanLag=paired.length?avg(paired.map(r=>r.lagMs)):null;
+  const load=pk.reduce((s,p)=>s+p/1000,0);
+  const speedScore=clamp(meanP/2000*100,0,100), consScore=clamp(100-cv,0,100);
+  // Solo usamos la secuencia en la calidad si hay suficientes datos de tronco (≥2).
+  const useSeq=paired.length>=2;
+  const quality=useSeq?0.4*speedScore+0.3*okPct+0.3*consScore:0.6*speedScore+0.4*consScore;
+  const jh=reps.map(r=>r.jumpHeightCm).filter(x=>x!=null);
+  return {repCount:reps.length,armPeakBestDps:best,armPeakMeanDps:meanP,armConsistencyCvPct:cv,
+    sequencingOkPct:okPct,sequencingMeanLagMs:meanLag,load,qualityIndex:quality,
+    jumpBestCm:jh.length?Math.max(...jh):null,fatigueDropPct:null};
+}
+
+function jumpSection(p){
+  const reps=p.reps;
+  const jumps=reps.filter(r=>r.jumpHeightCm!=null);
+  const timings=reps.map(r=>r.contactInFlightPct).filter(x=>x!=null);
+  if(!jumps.length && !timings.length){
+    return `<div class="sec"><h3>Salto</h3></div>
+      <div class="card"><p class="desc" style="margin:0">No se detectó salto en esta sesión. Si saltas al rematar, una captura nueva te mostrará el <b>tiempo de vuelo</b>, la <b>altura</b> y en qué <b>momento del salto golpeas</b>.</p></div>`;
+  }
+  const bestCm=jumps.length?Math.max(...jumps.map(r=>r.jumpHeightCm)):null;
+  const flights=reps.map(r=>r.flightTimeS).filter(x=>x!=null);
+  const meanFlight=flights.length?avg(flights):null;
+  const meanTiming=timings.length?avg(timings):null;
+  const tv = meanTiming==null?null : Math.abs(meanTiming-50)<=15?{l:'En el punto alto 👌',c:'var(--good)'}:Math.abs(meanTiming-50)<=30?{l:'Algo desfasado',c:'var(--warn)'}:{l:'Lejos del punto alto',c:'var(--bad)'};
+  let html=`<div class="sec"><h3>Salto</h3><span class="hint">vuelo y momento del golpe</span></div>`;
+  if(bestCm!=null){
+    html+=`<div class="grid">${metricCard({label:'Altura de salto',val:Math.round(bestCm),unit:'cm',
+      mean:meanFlight!=null?('vuelo '+meanFlight.toFixed(2)+' s'):'',v:{key:'na',label:'Salto',color:'var(--violet)'},
+      explain:'Altura estimada por el tiempo de vuelo (h = g·t²/8). Estimación con un solo sensor: úsala como referencia y tendencia.',
+      range:{min:0,max:80,a:40,b:80,val:bestCm,zoneColor:'var(--violet)'}})}</div>`;
+  }
+  if(meanTiming!=null){
+    html+=`<div class="card">
+      <h4>¿Golpeas en el punto más alto?</h4>
+      <p class="desc">Lo ideal es contactar el balón cerca del 50% del vuelo (punto más alto). Así pegas con el brazo más extendido y arriba.</p>
+      <div class="apex"><div class="apex-track"><div class="apex-ideal"></div><div class="apex-mark" style="left:${clamp(meanTiming,0,100)}%"></div></div>
+        <div class="apex-labels"><span>despegue</span><span>punto alto</span><span>aterrizaje</span></div></div>
+      <div style="margin-top:12px;font-weight:800;color:${tv.c};font-size:15px">${Math.round(meanTiming)}% · ${tv.l}</div>
+    </div>`;
+  }
+  return html;
+}
+
 /* ---------- render principal ---------- */
 function renderSession(name,p){
   if(!p||!p.aggregates||!p.reps||!p.traces){
     $("view").innerHTML='<div class="empty">Esta sesión no tiene datos completos para mostrar.<br>Sube una sesión real desde la app.</div>'; return;
+  }
+  // Corrige sesiones antiguas con sobreconteo: si el filtro reduce mucho, recalcula.
+  let fixNote="";
+  const cons=consolidateReps(p.reps);
+  if(cons.length>0 && cons.length < p.reps.length*0.6){
+    fixNote=`Detección corregida: ${p.reps.length} → ${cons.length} remates reales (recalculado).`;
+    p={...p, reps:cons, aggregates:{...p.aggregates, ...recompute(cons)}};
   }
   const a=p.aggregates;
   const qv=verdict("quality",a.qualityIndex);
@@ -312,6 +390,7 @@ function renderSession(name,p){
   const ttp = avgTtp(p);
   const ttpv=verdict("ttp",ttp);
   const sat = p.reps.filter(r=>r.armSaturated).length;
+  const seqN = p.reps.filter(r=>r.lagMs!=null).length; // remates con dato de tronco
   const focus=buildFocus(a,p.reps);
   const qVerdictText = a.qualityIndex>=72?"Gran sesión, técnica sólida.":a.qualityIndex>=48?"Buena base, con margen claro de mejora.":"Sesión para construir técnica desde la base.";
 
@@ -330,15 +409,19 @@ function renderSession(name,p){
         <span class="meta-chip"><b>${a.repCount}</b> remates</span>
         <span class="meta-chip">📅 ${new Date(p.startedAtMs).toLocaleDateString()}</span>
         <span class="meta-chip">⚡ pico <b class="num">${Math.round(a.armPeakBestDps)}</b>°/s</span>
-        ${sat?`<span class="meta-chip" style="color:var(--warn)">▲ ${sat} saturó${sat>1?'n':''}</span>`:''}
+        ${sat?`<span class="meta-chip" style="color:var(--warn)">▲ ${sat} ${sat>1?'saturaron':'saturó'}</span>`:''}
       </div>
     </div>
+
+    ${fixNote?`<div class="banner">✓ ${fixNote}</div>`:''}
 
     <div class="focus">
       <div class="ft">${focus.tag}</div>
       <h4>${focus.h}</h4>
       <p>${focus.p}</p>
     </div>
+
+    ${jumpSection(p)}
 
     <div class="sec"><h3>Tus métricas</h3><span class="hint">toca para entender cada una</span></div>
     <div class="grid">
@@ -347,9 +430,13 @@ function renderSession(name,p){
         explain:"Velocidad de giro de la muñeca en el golpe. A más alto, más potencia."+(sat?" <b>Algunos remates saturaron el sensor (≥2000°/s)</b>: tu pico real es aún mayor.":""),
         range:{min:500,max:2200,a:1300,b:2200,val:a.armPeakBestDps,zoneColor:"var(--good)"}})}
 
-      ${metricCard({label:"Secuencia tronco→brazo",val:Math.round(a.sequencingOkPct),unit:"%",mean:"lag medio "+(a.sequencingMeanLagMs!=null?Math.round(a.sequencingMeanLagMs):"—")+" ms",
-        v:seqv, explain:"Qué % de remates siguen el orden correcto: <b>el tronco gira y el brazo lo sigue como un látigo</b>. Es la clave de la potencia eficiente.",
-        range:{min:0,max:100,a:60,b:100,val:a.sequencingOkPct,zoneColor:"var(--good)"}})}
+      ${seqN>=2
+        ? metricCard({label:"Secuencia tronco→brazo",val:Math.round(a.sequencingOkPct),unit:"%",mean:"lag medio "+(a.sequencingMeanLagMs!=null?Math.round(a.sequencingMeanLagMs):"—")+" ms",
+            v:seqv, explain:"Qué % de remates siguen el orden correcto: <b>el tronco gira y el brazo lo sigue como un látigo</b>. Es la clave de la potencia eficiente.",
+            range:{min:0,max:100,a:60,b:100,val:a.sequencingOkPct,zoneColor:"var(--good)"}})
+        : metricCard({label:"Secuencia tronco→brazo",val:"—",unit:"",mean:"datos de tronco insuficientes",
+            v:{key:"na",label:"Recaptura",color:"var(--faint)"}, explain:"Esta sesión (antigua) no tiene suficientes datos de tronco emparejados. Captura una serie nueva con la app actualizada para medir la secuencia cinética.",
+            range:{min:0,max:100,a:60,b:100,val:0,zoneColor:"var(--faint)"}})}
 
       ${metricCard({label:"Consistencia",val:Math.round(a.armConsistencyCvPct),unit:"%",mean:"variación entre remates",
         v:cvv, explain:"Cuánto varían tus remates entre sí (CV). <b>Más bajo = más regular</b>. La regularidad es la base para mejorar.",
@@ -425,7 +512,7 @@ function rangeBar(rg){
 
 function renderKineticChain(p){
   const paired=p.reps.filter(r=>r.lagMs!=null);
-  if(!paired.length) return "";
+  if(paired.length<2) return "";
   const maxL=Math.max(220,...paired.map(r=>Math.abs(r.lagMs)));
   const pct=v=>Math.max(0,Math.min(100,(Math.abs(v)/maxL)*46));
   // ideal zone +10..+150 ms a la derecha del centro
