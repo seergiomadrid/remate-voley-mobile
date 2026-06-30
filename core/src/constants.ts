@@ -42,8 +42,22 @@ export const RESAMPLE_HZ = 200;
  */
 export const ARM_ACTIVITY_GATE_DPS = 400;
 
+/**
+ * Detección de remates. Calibrada con datos reales de remates con salto:
+ * el pico de velocidad angular de un remate real está MUY por encima de los
+ * movimientos de aproximación, armado y caída (que el detector antiguo contaba
+ * como remates → sobreconteo 10×). Validado: 52→5, 22→1, 13→1, 90→3.
+ *   umbral = max(SPIKE_MIN_DPS, SPIKE_REL_FRACTION · pico_máx_sesión)
+ *   + separación mínima SPIKE_REFRACTORY_MS (se conserva el más alto por ventana).
+ */
+export const SPIKE_MIN_DPS = 1100;
+export const SPIKE_REL_FRACTION = 0.55;
+export const SPIKE_REFRACTORY_MS = 3000;
+/** Rotación de tronco mínima (dps) para considerar que hubo cadena cinética. */
+export const TORSO_MIN_DPS = 150;
+
 /** Caída libre: |acc| por debajo de este valor indica fase de vuelo del salto. */
-export const FREEFALL_THRESHOLD_G = 0.35;
+export const FREEFALL_THRESHOLD_G = 0.45;
 
 /** Ventana máxima (ms) para emparejar un pico de torso con uno de brazo. */
 export const PAIR_MAX_DELAY_MS = 300;

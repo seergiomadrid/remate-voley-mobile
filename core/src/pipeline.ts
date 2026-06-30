@@ -8,7 +8,9 @@ import { buildReps } from "./metrics/sequencing.js";
 import { generateTips } from "./coaching.js";
 import { prepareStreams } from "./prepare.js";
 import { findPeaks } from "./signal/peaks.js";
+import { max as arrMax } from "./signal/stats.js";
 import { estimateClockOffset } from "./sync.js";
+import { SPIKE_MIN_DPS, SPIKE_REL_FRACTION, SPIKE_REFRACTORY_MS } from "./constants.js";
 import type { ResampledStream, SensorStream, SessionAnalysis } from "./types.js";
 
 export interface AnalyzeOptions {
@@ -38,9 +40,8 @@ export function analyzeSession(
   torso: SensorStream | null,
   opts: AnalyzeOptions = {},
 ): AnalyzeResult {
-  const refractoryMs = opts.refractoryMs ?? 300;
+  const refractoryMs = opts.refractoryMs ?? SPIKE_REFRACTORY_MS;
   const windowMs = opts.windowMs ?? 300;
-  const peakK = opts.peakK ?? 1.2;
 
   let offsetMs = opts.forcedOffsetMs ?? 0;
   let syncConfidence = 1;
@@ -54,8 +55,15 @@ export function analyzeSession(
   const step = 1000 / ra.fs;
   const minDistance = Math.max(1, Math.round(refractoryMs / step));
 
-  const armPeaks = findPeaks(ra.gyroSmooth, { k: peakK, minDistance });
-  const torsoPeaks = rt ? findPeaks(rt.gyroSmooth, { k: peakK, minDistance }) : [];
+  // Detección de REMATES (brazo): umbral relativo al pico máximo de la sesión.
+  // Un remate real está muy por encima de los movimientos de aproximación/armado.
+  const armMax = arrMax(ra.gyroSmooth);
+  const spikeHeight = Math.max(SPIKE_MIN_DPS, SPIKE_REL_FRACTION * armMax);
+  const armPeaks = findPeaks(ra.gyroSmooth, { height: spikeHeight, minDistance });
+  // Picos de torso solo para visualización (umbral moderado, refractario corto).
+  const torsoPeaks = rt
+    ? findPeaks(rt.gyroSmooth, { k: 1.2, minDistance: Math.max(1, Math.round(800 / step)) })
+    : [];
 
   const reps = buildReps(ra, rt, armPeaks, torsoPeaks, windowMs);
   const aggregates = computeAggregates(reps);

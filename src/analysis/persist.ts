@@ -26,6 +26,8 @@ export interface SessionPayload {
     lagMs: number | null;
     sequencingOk: boolean;
     jumpHeightCm: number | null;
+    flightTimeS: number | null;
+    contactInFlightPct: number | null;
     contactAccG: number;
   }[];
   traces: { arm: TracePayload; torso: TracePayload | null };
@@ -64,6 +66,8 @@ export function buildSessionPayload(result: AnalyzeResult, startedAtMs: number):
       lagMs: r.sequencingLagMs != null ? Math.round(r.sequencingLagMs) : null,
       sequencingOk: r.sequencingOk,
       jumpHeightCm: r.jump.jumpHeightCm != null ? Math.round(r.jump.jumpHeightCm) : null,
+      flightTimeS: r.jump.flightTimeS != null ? Math.round(r.jump.flightTimeS * 100) / 100 : null,
+      contactInFlightPct: r.jump.contactInFlightPct != null ? Math.round(r.jump.contactInFlightPct) : null,
       contactAccG: Math.round(r.contact.contactAccG * 10) / 10,
     })),
     traces: {

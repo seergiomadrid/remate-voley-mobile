@@ -17,6 +17,8 @@ export function computeAggregates(reps: Rep[]): SessionAggregates {
       armSaturatedCount: 0,
       jumpBestCm: null,
       jumpMeanCm: null,
+      flightTimeMeanS: null,
+      contactInFlightMeanPct: null,
       sequencingMeanLagMs: null,
       sequencingOkPct: 0,
       fatigueDropPct: null,
@@ -36,6 +38,10 @@ export function computeAggregates(reps: Rep[]): SessionAggregates {
   const jumps = reps.map((r) => r.jump.jumpHeightCm).filter((x): x is number => x != null);
   const jumpBestCm = jumps.length ? Math.max(...jumps) : null;
   const jumpMeanCm = jumps.length ? mean(jumps) : null;
+  const flights = reps.map((r) => r.jump.flightTimeS).filter((x): x is number => x != null);
+  const flightTimeMeanS = flights.length ? mean(flights) : null;
+  const timings = reps.map((r) => r.jump.contactInFlightPct).filter((x): x is number => x != null);
+  const contactInFlightMeanPct = timings.length ? mean(timings) : null;
 
   // Secuenciación.
   const paired = reps.filter((r) => r.sequencingLagMs != null);
@@ -73,6 +79,8 @@ export function computeAggregates(reps: Rep[]): SessionAggregates {
     armSaturatedCount,
     jumpBestCm,
     jumpMeanCm,
+    flightTimeMeanS,
+    contactInFlightMeanPct,
     sequencingMeanLagMs,
     sequencingOkPct,
     fatigueDropPct,

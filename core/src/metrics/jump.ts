@@ -13,53 +13,58 @@ import { FREEFALL_THRESHOLD_G, G_MS2 } from "../constants.js";
 import { max } from "../signal/stats.js";
 import type { JumpMetrics, ResampledStream } from "../types.js";
 
-const MIN_FLIGHT_MS = 150;
-const MAX_FLIGHT_MS = 1200;
+const MIN_FLIGHT_MS = 120;
+const MAX_FLIGHT_MS = 1100;
+const NONE: JumpMetrics = {
+  flightTimeS: null, jumpHeightCm: null, takeoffAccG: null, landingAccG: null, contactInFlightPct: null,
+};
 
-export function detectJump(torso: ResampledStream, repTimeMs: number): JumpMetrics {
+/**
+ * Detecta el salto alrededor del instante del remate (contactMs) usando el
+ * sensor de torso. En vuelo el acelerómetro mide ~0 g (caída libre): se busca
+ * el tramo de baja aceleración más largo cerca del remate. Devuelve además
+ * dónde cae el remate dentro del vuelo (0 despegue, 50 punto alto, 100 aterrizaje).
+ *
+ * Estimación honesta con un solo IMU: el vuelo del tronco no es caída libre pura
+ * (piernas/brazo añaden aceleración), así que sirve como tendencia. La captura
+ * por evento a alta frecuencia lo haría más preciso (ver docs/biomecanica.md).
+ */
+export function detectJump(torso: ResampledStream, contactMs: number): JumpMetrics {
   const { t, accMag, fs } = torso;
   const step = 1000 / fs;
 
-  // Buscar en una ventana que cubra el despegue antes del remate y el aterrizaje.
-  const lo = Math.max(0, Math.round((repTimeMs - 1200 - t[0]!) / step));
-  const hi = Math.min(t.length - 1, Math.round((repTimeMs + 500 - t[0]!) / step));
+  // Ventana amplia: despegue bastante antes del contacto y aterrizaje después.
+  const lo = Math.max(0, Math.round((contactMs - 900 - t[0]!) / step));
+  const hi = Math.min(t.length - 1, Math.round((contactMs + 900 - t[0]!) / step));
 
-  // Encontrar el tramo de caída libre más largo dentro de la ventana.
-  let bestStart = -1;
-  let bestLen = 0;
-  let curStart = -1;
+  // Tramo de caída libre (baja aceleración) más largo dentro de la ventana.
+  let bestStart = -1, bestLen = 0, curStart = -1;
   for (let i = lo; i <= hi; i++) {
     if (accMag[i]! < FREEFALL_THRESHOLD_G) {
       if (curStart < 0) curStart = i;
-    } else {
-      if (curStart >= 0) {
-        const len = i - curStart;
-        if (len > bestLen) {
-          bestLen = len;
-          bestStart = curStart;
-        }
-        curStart = -1;
-      }
+    } else if (curStart >= 0) {
+      if (i - curStart > bestLen) { bestLen = i - curStart; bestStart = curStart; }
+      curStart = -1;
     }
   }
-  if (curStart >= 0 && hi - curStart > bestLen) {
-    bestLen = hi - curStart;
-    bestStart = curStart;
-  }
+  if (curStart >= 0 && hi - curStart > bestLen) { bestLen = hi - curStart; bestStart = curStart; }
 
   const flightMs = bestLen * step;
-  if (bestStart < 0 || flightMs < MIN_FLIGHT_MS || flightMs > MAX_FLIGHT_MS) {
-    return { flightTimeS: null, jumpHeightCm: null, takeoffAccG: null, landingAccG: null };
-  }
+  if (bestStart < 0 || flightMs < MIN_FLIGHT_MS || flightMs > MAX_FLIGHT_MS) return NONE;
 
   const flightTimeS = flightMs / 1000;
   const jumpHeightCm = ((G_MS2 * flightTimeS * flightTimeS) / 8) * 100;
 
   const flightEnd = bestStart + bestLen;
-  const takeoffLo = Math.max(0, bestStart - Math.round(150 / step));
+  const takeoffLo = Math.max(0, bestStart - Math.round(180 / step));
   const takeoffAccG = max(accMag.slice(takeoffLo, bestStart + 1));
-  const landingHi = Math.min(t.length - 1, flightEnd + Math.round(150 / step));
+  const landingHi = Math.min(t.length - 1, flightEnd + Math.round(180 / step));
   const landingAccG = max(accMag.slice(flightEnd, landingHi + 1));
 
-  return { flightTimeS, jumpHeightCm, takeoffAccG, landingAccG };
+  // Momento del remate dentro del vuelo (%). Ideal ~50 (punto más alto).
+  const flightStartMs = t[bestStart]!;
+  let contactInFlightPct: number | null = (contactMs - flightStartMs) / flightMs * 100;
+  contactInFlightPct = Math.max(0, Math.min(100, contactInFlightPct));
+
+  return { flightTimeS, jumpHeightCm, takeoffAccG, landingAccG, contactInFlightPct };
 }

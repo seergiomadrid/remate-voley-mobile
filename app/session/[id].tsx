@@ -8,7 +8,7 @@ import { SignalChart } from "@/components/SignalChart";
 import { Ring } from "@/components/Ring";
 import { RangeBar } from "@/components/RangeBar";
 import { theme, verdict, tint, type Verdict } from "@/theme";
-import { repNote, buildFocus, avgTimeToPeak, QUALITY_VERDICT, RANGES } from "@/analysis/insights";
+import { repNote, buildFocus, QUALITY_VERDICT, RANGES, consolidateReps, isOverDetected, recomputeAggregates, jumpStats, type JumpStats } from "@/analysis/insights";
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,16 +61,23 @@ export default function SessionScreen() {
   if (loading) return <View style={styles.screen}><ActivityIndicator color={theme.arm} style={{ marginTop: 50 }} /></View>;
   if (!p) return <View style={styles.screen}><Text style={styles.empty}>Sesión no encontrada.</Text></View>;
 
-  const a = p.aggregates;
+  // Corrige sesiones antiguas con sobreconteo y recalcula.
+  const over = isOverDetected(p.reps);
+  const reps = over ? consolidateReps(p.reps) : p.reps;
+  const a = over ? recomputeAggregates(reps, p.aggregates) : p.aggregates;
+
   const qv = verdict("quality", a.qualityIndex);
-  const seqv = verdict("seq", a.sequencingOkPct);
   const cvv = verdict("cv", a.armConsistencyCvPct);
-  const ttp = avgTimeToPeak(p);
+  const ttpAll = reps.map((r) => r.armTimeToPeakMs).filter((v) => v != null && !isNaN(v));
+  const ttp = ttpAll.length ? ttpAll.reduce((s, v) => s + v, 0) / ttpAll.length : 0;
   const ttpv = verdict("ttp", ttp);
   const peakv = verdict("peak", a.armPeakBestDps);
-  const sat = p.reps.filter((r) => r.armSaturated).length;
+  const sat = reps.filter((r) => r.armSaturated).length;
   const focus = buildFocus(a);
-  const paired = p.reps.filter((r) => r.lagMs != null);
+  const paired = reps.filter((r) => r.lagMs != null);
+  const seqN = paired.length;
+  const seqv = verdict("seq", a.sequencingOkPct);
+  const jump = jumpStats(reps);
   const chartW = width - 32 - 32;
 
   return (
@@ -91,9 +98,15 @@ export default function SessionScreen() {
           <MetaChip text={`${a.repCount} remates`} bold />
           <MetaChip text={new Date(p.startedAtMs).toLocaleDateString()} />
           <MetaChip text={`pico ${Math.round(a.armPeakBestDps)}°/s`} />
-          {sat ? <MetaChip text={`▲ ${sat} saturó${sat > 1 ? "n" : ""}`} color={theme.warn} /> : null}
+          {sat ? <MetaChip text={`▲ ${sat} ${sat > 1 ? "saturaron" : "saturó"}`} color={theme.warn} /> : null}
         </View>
       </View>
+
+      {over ? (
+        <View style={styles.banner}>
+          <Text style={styles.bannerText}>✓ Detección corregida: {p.reps.length} → {reps.length} remates reales (recalculado).</Text>
+        </View>
+      ) : null}
 
       {/* upload */}
       <Pressable style={styles.uploadBtn} onPress={onUploadPress} disabled={uploading}>
@@ -107,6 +120,9 @@ export default function SessionScreen() {
         <Text style={styles.focusBody}>{focus.body}</Text>
       </View>
 
+      {/* SALTO */}
+      <JumpSection jump={jump} />
+
       {/* MÉTRICAS */}
       <SectionHeader title="Tus métricas" hint="qué significa cada una" />
       <View style={styles.grid}>
@@ -116,12 +132,21 @@ export default function SessionScreen() {
           range={RANGES.peak} rangeVal={a.armPeakBestDps} color={theme.good}
           explain={"Velocidad de giro de la muñeca en el golpe. A más alto, más potencia." + (sat ? " Algunos remates saturaron (≥2000°/s): tu pico real es aún mayor." : "")}
         />
-        <MetricCard
-          label="Secuencia tronco→brazo" value={Math.round(a.sequencingOkPct)} unit="%"
-          sub={`lag medio ${a.sequencingMeanLagMs != null ? Math.round(a.sequencingMeanLagMs) : "—"} ms`} v={seqv}
-          range={RANGES.seq} rangeVal={a.sequencingOkPct} color={theme.good}
-          explain="% de remates con el orden correcto: el tronco gira y el brazo lo sigue como un látigo. Es la clave de la potencia eficiente."
-        />
+        {seqN >= 2 ? (
+          <MetricCard
+            label="Secuencia tronco→brazo" value={Math.round(a.sequencingOkPct)} unit="%"
+            sub={`lag medio ${a.sequencingMeanLagMs != null ? Math.round(a.sequencingMeanLagMs) : "—"} ms`} v={seqv}
+            range={RANGES.seq} rangeVal={a.sequencingOkPct} color={theme.good}
+            explain="% de remates con el orden correcto: el tronco gira y el brazo lo sigue como un látigo. Es la clave de la potencia eficiente."
+          />
+        ) : (
+          <MetricCard
+            label="Secuencia tronco→brazo" value={"—" as any} unit="" sub="datos de tronco insuficientes"
+            v={{ key: "na", label: "Recaptura", color: theme.faint }}
+            range={RANGES.seq} rangeVal={0} color={theme.faint}
+            explain="Esta sesión no tiene suficientes datos de tronco emparejados. Captura una serie nueva con la app actualizada para medir la secuencia cinética."
+          />
+        )}
         <MetricCard
           label="Consistencia" value={Math.round(a.armConsistencyCvPct)} unit="%"
           sub="variación entre remates" v={cvv}
@@ -148,7 +173,7 @@ export default function SessionScreen() {
       </View>
 
       {/* CADENA CINÉTICA */}
-      {paired.length > 0 && (
+      {seqN >= 2 && (
         <>
           <SectionHeader title="Cadena cinética" hint="tronco → brazo" />
           <View style={styles.card}>
@@ -160,26 +185,78 @@ export default function SessionScreen() {
 
       {/* REMATE A REMATE */}
       <SectionHeader title="Remate a remate" hint="análisis individual" />
-      {p.reps.map((r) => <RepCard key={r.index} rep={r} />)}
+      {reps.map((r) => <RepCard key={r.index} rep={r} />)}
 
-      {/* CONSEJOS */}
-      <SectionHeader title="Consejos" />
-      <View style={styles.card}>
-        {p.tips.map((t, i) => {
-          const col = t.severity === "good" ? theme.good : t.severity === "warn" ? theme.warn : theme.violet;
-          const ic = t.severity === "good" ? "✅" : t.severity === "warn" ? "⚠️" : "🎯";
-          return (
-            <View key={i} style={[styles.tip, i > 0 && { borderTopWidth: 1, borderTopColor: theme.hair }]}>
-              <View style={[styles.tipIc, { backgroundColor: tint(col) }]}><Text style={{ fontSize: 16 }}>{ic}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.tipCat}>{t.category}</Text>
-                <Text style={styles.tipMsg}>{t.message}</Text>
-              </View>
-            </View>
-          );
-        })}
-      </View>
+      {/* CONSEJOS (ocultos si la sesión se ha recalculado: los antiguos no aplican) */}
+      {!over && p.tips.length > 0 && (
+        <>
+          <SectionHeader title="Consejos" />
+          <View style={styles.card}>
+            {p.tips.map((t, i) => {
+              const col = t.severity === "good" ? theme.good : t.severity === "warn" ? theme.warn : theme.violet;
+              const ic = t.severity === "good" ? "✅" : t.severity === "warn" ? "⚠️" : "🎯";
+              return (
+                <View key={i} style={[styles.tip, i > 0 && { borderTopWidth: 1, borderTopColor: theme.hair }]}>
+                  <View style={[styles.tipIc, { backgroundColor: tint(col) }]}><Text style={{ fontSize: 16 }}>{ic}</Text></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.tipCat}>{t.category}</Text>
+                    <Text style={styles.tipMsg}>{t.message}</Text>
+                  </View>
+                </View>
+              );
+            })}
+          </View>
+        </>
+      )}
     </ScrollView>
+  );
+}
+
+function JumpSection({ jump }: { jump: JumpStats }) {
+  if (jump.bestCm == null && jump.meanTimingPct == null) {
+    return (
+      <View>
+        <SectionHeader title="Salto" />
+        <View style={styles.card}>
+          <Text style={[styles.cardDesc, { marginBottom: 0 }]}>No se detectó salto en esta sesión. Si saltas al rematar, una captura nueva mostrará el tiempo de vuelo, la altura y en qué momento del salto golpeas.</Text>
+        </View>
+      </View>
+    );
+  }
+  const t = jump.meanTimingPct;
+  const tv = t == null ? null
+    : Math.abs(t - 50) <= 15 ? { l: "En el punto alto 👌", c: theme.good }
+    : Math.abs(t - 50) <= 30 ? { l: "Algo desfasado", c: theme.warn }
+    : { l: "Lejos del punto alto", c: theme.bad };
+  return (
+    <View>
+      <SectionHeader title="Salto" hint="vuelo y momento del golpe" />
+      {jump.bestCm != null ? (
+        <View style={styles.grid}>
+          <MetricCard label="Altura de salto" value={Math.round(jump.bestCm)} unit="cm"
+            sub={jump.meanFlightS != null ? `vuelo ${jump.meanFlightS.toFixed(2)} s` : ""}
+            v={{ key: "na", label: "Salto", color: theme.violet }}
+            range={{ min: 0, max: 80, a: 40, b: 80 }} rangeVal={jump.bestCm} color={theme.violet}
+            explain="Altura estimada por el tiempo de vuelo (h = g·t²/8). Estimación con un solo sensor: úsala como referencia y tendencia." />
+        </View>
+      ) : null}
+      {t != null && tv ? (
+        <View style={styles.card}>
+          <Text style={styles.cardH4}>¿Golpeas en el punto más alto?</Text>
+          <Text style={styles.cardDesc}>Lo ideal es contactar el balón cerca del 50% del vuelo (punto más alto). Así pegas con el brazo más extendido y arriba.</Text>
+          <View style={styles.apexTrack}>
+            <View style={styles.apexIdeal} />
+            <View style={[styles.apexMark, { left: `${Math.max(0, Math.min(100, t))}%` }]} />
+          </View>
+          <View style={styles.apexLabels}>
+            <Text style={styles.apexLbl}>despegue</Text>
+            <Text style={styles.apexLbl}>punto alto</Text>
+            <Text style={styles.apexLbl}>aterrizaje</Text>
+          </View>
+          <Text style={[styles.apexVerdict, { color: tv.c }]}>{Math.round(t)}% · {tv.l}</Text>
+        </View>
+      ) : null}
+    </View>
   );
 }
 
@@ -322,7 +399,18 @@ const styles = StyleSheet.create({
   mExplain: { fontSize: 12.5, color: theme.muted, lineHeight: 18, marginTop: 11, paddingTop: 11, borderTopWidth: 1, borderTopColor: theme.hair },
 
   card: { ...card, padding: 16 },
+  cardH4: { fontSize: 14, fontWeight: "800", color: theme.text, marginBottom: 4 },
   cardDesc: { fontSize: 12.5, color: theme.muted, lineHeight: 18, marginBottom: 12 },
+
+  banner: { backgroundColor: "rgba(21,166,91,0.10)", borderWidth: 1, borderColor: "rgba(21,166,91,0.3)", borderRadius: 14, padding: 12 },
+  bannerText: { color: "#0d7a44", fontSize: 13, fontWeight: "700" },
+
+  apexTrack: { height: 10, borderRadius: 999, backgroundColor: theme.bg2, position: "relative", marginTop: 4 },
+  apexIdeal: { position: "absolute", left: "35%", width: "30%", top: 0, bottom: 0, backgroundColor: "rgba(21,166,91,0.25)", borderRadius: 999 },
+  apexMark: { position: "absolute", top: -4, width: 4, height: 18, borderRadius: 2, backgroundColor: theme.violet, marginLeft: -2 },
+  apexLabels: { flexDirection: "row", justifyContent: "space-between", marginTop: 7 },
+  apexLbl: { fontSize: 10.5, color: theme.faint },
+  apexVerdict: { marginTop: 12, fontSize: 15, fontWeight: "800" },
   legend: { flexDirection: "row", gap: 16, marginTop: 10, flexWrap: "wrap" },
 
   kcRow: { flexDirection: "row", alignItems: "center", gap: 12, paddingVertical: 8, borderTopWidth: 1, borderTopColor: theme.hair },

@@ -4,6 +4,70 @@ import type { SessionPayload } from "@/analysis/persist";
 type Rep = SessionPayload["reps"][number];
 type Agg = SessionPayload["aggregates"];
 
+const avg = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
+const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
+
+/**
+ * Reconsolida remates de sesiones antiguas con sobreconteo (mismo criterio que
+ * el motor: umbral = max(1100, 0.55·pico) + refractario 3 s). Idempotente para
+ * sesiones nuevas ya correctas.
+ */
+export function consolidateReps(reps: Rep[]): Rep[] {
+  if (!reps.length) return reps;
+  const mx = Math.max(...reps.map((r) => r.armPeakDps));
+  const thr = Math.max(1100, 0.55 * mx);
+  const cands = reps.filter((r) => r.armPeakDps >= thr).sort((a, b) => b.armPeakDps - a.armPeakDps);
+  const kept: Rep[] = [];
+  for (const r of cands) if (kept.every((k) => Math.abs(r.timeMs - k.timeMs) > 3000)) kept.push(r);
+  kept.sort((a, b) => a.timeMs - b.timeMs);
+  return kept.map((r, i) => ({ ...r, index: i }));
+}
+
+/** ¿La sesión está sobredetectada? (el filtro reduce a menos del 60%). */
+export function isOverDetected(reps: Rep[]): boolean {
+  const c = consolidateReps(reps);
+  return c.length > 0 && c.length < reps.length * 0.6;
+}
+
+/** Recalcula los agregados clave desde un conjunto de remates. */
+export function recomputeAggregates(reps: Rep[], base: Agg): Agg {
+  const pk = reps.map((r) => r.armPeakDps);
+  const meanP = avg(pk);
+  const m = meanP;
+  const cv = m > 0 ? (Math.sqrt(avg(pk.map((v) => (v - m) ** 2))) / m) * 100 : 0;
+  const paired = reps.filter((r) => r.lagMs != null);
+  const okPct = paired.length ? (paired.filter((r) => r.sequencingOk).length / paired.length) * 100 : 0;
+  const useSeq = paired.length >= 2;
+  const speed = clamp((meanP / 2000) * 100, 0, 100);
+  const cons = clamp(100 - cv, 0, 100);
+  const quality = useSeq ? 0.4 * speed + 0.3 * okPct + 0.3 * cons : 0.6 * speed + 0.4 * cons;
+  const jh = reps.map((r) => r.jumpHeightCm).filter((x): x is number => x != null);
+  return {
+    ...base,
+    repCount: reps.length,
+    armPeakBestDps: Math.max(...pk),
+    armPeakMeanDps: meanP,
+    armConsistencyCvPct: cv,
+    sequencingOkPct: okPct,
+    sequencingMeanLagMs: paired.length ? avg(paired.map((r) => r.lagMs!)) : null,
+    load: pk.reduce((s, p) => s + p / 1000, 0),
+    qualityIndex: quality,
+    jumpBestCm: jh.length ? Math.max(...jh) : null,
+  };
+}
+
+export interface JumpStats { bestCm: number | null; meanFlightS: number | null; meanTimingPct: number | null; }
+export function jumpStats(reps: Rep[]): JumpStats {
+  const jh = reps.map((r) => r.jumpHeightCm).filter((x): x is number => x != null);
+  const fl = reps.map((r) => r.flightTimeS).filter((x): x is number => x != null);
+  const ti = reps.map((r) => r.contactInFlightPct).filter((x): x is number => x != null);
+  return {
+    bestCm: jh.length ? Math.max(...jh) : null,
+    meanFlightS: fl.length ? avg(fl) : null,
+    meanTimingPct: ti.length ? avg(ti) : null,
+  };
+}
+
 /** Frase descriptiva de un remate concreto. */
 export function repNote(r: Rep): string {
   const power = r.armPeakDps >= 2000

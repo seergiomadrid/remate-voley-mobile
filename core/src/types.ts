@@ -94,6 +94,11 @@ export interface JumpMetrics {
   takeoffAccG: number | null;
   /** Pico de aceleración en el aterrizaje (g) → carga de impacto. */
   landingAccG: number | null;
+  /**
+   * Momento del remate dentro del vuelo, en % (0 = despegue, 50 = punto más
+   * alto del salto, 100 = aterrizaje). Lo ideal es golpear cerca del 50%.
+   */
+  contactInFlightPct: number | null;
 }
 
 /** Una repetición (remate) emparejando torso y brazo. */
@@ -125,6 +130,10 @@ export interface SessionAggregates {
   // Salto
   jumpBestCm: number | null;
   jumpMeanCm: number | null;
+  /** Tiempo de vuelo medio (s). */
+  flightTimeMeanS: number | null;
+  /** Momento medio del remate dentro del salto (%). Ideal ~50 (punto alto). */
+  contactInFlightMeanPct: number | null;
   // Secuenciación
   sequencingMeanLagMs: number | null;
   sequencingOkPct: number;
