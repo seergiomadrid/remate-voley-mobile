@@ -12,6 +12,28 @@ import type { ResampledStream, SensorStream } from "./types.js";
 const GYRO_CUTOFF_HZ = 15; // preserva el pico del swing, quita ruido
 const ACC_CUTOFF_HZ = 25;
 
+/**
+ * Separación máxima (ms) entre muestras originales para considerar el tramo
+ * como medido. Por encima (pérdida BLE / desconexión), la interpolación es
+ * ficción y se marca como hueco.
+ */
+const GAP_MS = 300;
+
+/** Marca cada punto de la rejilla que cae entre muestras originales demasiado separadas. */
+function gapMask(tSource: number[], grid: Float64Array, maxGapMs: number): Uint8Array {
+  const out = new Uint8Array(grid.length);
+  if (tSource.length < 2) return out.fill(1), out;
+  let j = 0;
+  for (let i = 0; i < grid.length; i++) {
+    const tg = grid[i]!;
+    while (j < tSource.length - 2 && tSource[j + 1]! < tg) j++;
+    const before = tSource[j]!;
+    const after = tSource[Math.min(j + 1, tSource.length - 1)]!;
+    if (tg < tSource[0]! || tg > tSource[tSource.length - 1]! || after - before > maxGapMs) out[i] = 1;
+  }
+  return out;
+}
+
 function prepareOne(stream: SensorStream, offsetMs: number, tStart: number, tEnd: number): ResampledStream {
   const fs = RESAMPLE_HZ;
   const s = stream.samples;
@@ -31,6 +53,7 @@ function prepareOne(stream: SensorStream, offsetMs: number, tStart: number, tEnd
     accSmooth: filtfiltLowpass(acc.v, ACC_CUTOFF_HZ, fs),
     gyroSaturated: gyroSat,
     accSaturated: accSat,
+    gap: gapMask(t, gyro.t, GAP_MS),
   };
 }
 

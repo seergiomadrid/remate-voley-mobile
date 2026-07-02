@@ -8,7 +8,8 @@ import { SignalChart } from "@/components/SignalChart";
 import { Ring } from "@/components/Ring";
 import { RangeBar } from "@/components/RangeBar";
 import { theme, verdict, tint, type Verdict } from "@/theme";
-import { repNote, buildFocus, QUALITY_VERDICT, RANGES, consolidateReps, isOverDetected, recomputeAggregates, jumpStats, type JumpStats } from "@/analysis/insights";
+import { buildFocus, QUALITY_VERDICT, RANGES, consolidateReps, isOverDetected, strictSession, jumpStats, type JumpStats } from "@/analysis/insights";
+import type { RepScorePayload } from "@/analysis/persist";
 
 export default function SessionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -61,22 +62,35 @@ export default function SessionScreen() {
   if (loading) return <View style={styles.screen}><ActivityIndicator color={theme.arm} style={{ marginTop: 50 }} /></View>;
   if (!p) return <View style={styles.screen}><Text style={styles.empty}>Sesión no encontrada.</Text></View>;
 
-  // Corrige sesiones antiguas con sobreconteo y recalcula.
+  // Corrige sesiones antiguas con sobreconteo.
   const over = isOverDetected(p.reps);
   const reps = over ? consolidateReps(p.reps) : p.reps;
-  const a = over ? recomputeAggregates(reps, p.aggregates) : p.aggregates;
+  const a = p.aggregates;
 
-  const qv = verdict("quality", a.qualityIndex);
-  const cvv = verdict("cv", a.armConsistencyCvPct);
+  // Índice de calidad estricto (escala élite), recalculado siempre sobre los
+  // remates mostrados para que sesiones antiguas y nuevas usen la misma escala.
+  const strict = strictSession(reps);
+  const quality = strict.index;
+  const capMax = strict.capMax;
+  const repScores = strict.repScores;
+
+  const qv = verdict("quality", quality);
+  const peaks = reps.map((r) => r.armEstPeakDps ?? r.armPeakDps);
+  const bestPeak = peaks.length ? Math.max(...peaks) : 0;
+  const meanPeak = peaks.length ? peaks.reduce((s, v) => s + v, 0) / peaks.length : 0;
+  const mCv = meanPeak > 0 ? (Math.sqrt(peaks.reduce((s, v) => s + (v - meanPeak) ** 2, 0) / peaks.length) / meanPeak) * 100 : 0;
+  const cvv = verdict("cv", mCv);
   const ttpAll = reps.map((r) => r.armTimeToPeakMs).filter((v) => v != null && !isNaN(v));
   const ttp = ttpAll.length ? ttpAll.reduce((s, v) => s + v, 0) / ttpAll.length : 0;
   const ttpv = verdict("ttp", ttp);
-  const peakv = verdict("peak", a.armPeakBestDps);
+  const peakv = verdict("peak", bestPeak);
   const sat = reps.filter((r) => r.armSaturated).length;
-  const focus = buildFocus(a);
+  const focus = buildFocus(repScores);
   const paired = reps.filter((r) => r.lagMs != null);
   const seqN = paired.length;
-  const seqv = verdict("seq", a.sequencingOkPct);
+  const seqOkPct = seqN ? (paired.filter((r) => r.sequencingOk).length / seqN) * 100 : 0;
+  const meanLag = seqN ? paired.reduce((s, r) => s + r.lagMs!, 0) / seqN : null;
+  const seqv = verdict("seq", seqOkPct);
   const jump = jumpStats(reps);
   const chartW = width - 32 - 32;
 
@@ -85,21 +99,26 @@ export default function SessionScreen() {
       {/* HERO */}
       <View style={styles.hero}>
         <View style={{ flexDirection: "row", alignItems: "center", gap: 16 }}>
-          <Ring value={a.qualityIndex} size={92} color={qv.color} big={Math.round(a.qualityIndex)} small="Calidad" />
+          <Ring value={quality} size={92} color={qv.color} big={Math.round(quality)} small="Calidad" />
           <View style={{ flex: 1 }}>
             <View style={[styles.tag, { backgroundColor: tint(qv.color) }]}>
               <Text style={[styles.tagText, { color: qv.color }]}>{qv.label}</Text>
             </View>
             <Text style={styles.heroTitle}>Análisis de sesión</Text>
-            <Text style={styles.heroSub}>{QUALITY_VERDICT(a.qualityIndex)}</Text>
+            <Text style={styles.heroSub}>{QUALITY_VERDICT(quality)}</Text>
           </View>
         </View>
         <View style={styles.metaRow}>
-          <MetaChip text={`${a.repCount} remates`} bold />
+          <MetaChip text={`${reps.length} remates`} bold />
           <MetaChip text={new Date(p.startedAtMs).toLocaleDateString()} />
-          <MetaChip text={`pico ${Math.round(a.armPeakBestDps)}°/s`} />
+          <MetaChip text={`pico ${Math.round(bestPeak)}°/s${sat ? " est." : ""}`} />
           {sat ? <MetaChip text={`▲ ${sat} ${sat > 1 ? "saturaron" : "saturó"}`} color={theme.warn} /> : null}
         </View>
+        {capMax < 99 ? (
+          <Text style={styles.capNote}>Índice capado a {Math.round(capMax)}: hay componentes sin medir (tronco o salto). Escala élite: 100 = remate profesional.</Text>
+        ) : (
+          <Text style={styles.capNote}>Escala élite: 100 = remate de jugador profesional en todos los componentes.</Text>
+        )}
       </View>
 
       {over ? (
@@ -127,37 +146,37 @@ export default function SessionScreen() {
       <SectionHeader title="Tus métricas" hint="qué significa cada una" />
       <View style={styles.grid}>
         <MetricCard
-          label="Potencia de brazo" value={Math.round(a.armPeakBestDps)} unit="°/s"
-          sub={`media ${Math.round(a.armPeakMeanDps)}°/s`} v={peakv}
-          range={RANGES.peak} rangeVal={a.armPeakBestDps} color={theme.good}
-          explain={"Velocidad de giro de la muñeca en el golpe. A más alto, más potencia." + (sat ? " Algunos remates saturaron (≥2000°/s): tu pico real es aún mayor." : "")}
+          label="Potencia de brazo" value={Math.round(bestPeak)} unit="°/s"
+          sub={`media ${Math.round(meanPeak)}°/s${sat ? " (estimado, saturó)" : ""}`} v={peakv}
+          range={RANGES.peak} rangeVal={bestPeak} color={theme.good}
+          explain={"Velocidad de giro de la muñeca en el golpe. Élite: 2600–3000 °/s." + (sat ? " Los picos saturados se extrapolan por la forma del recorte." : "")}
         />
         {seqN >= 2 ? (
           <MetricCard
-            label="Secuencia tronco→brazo" value={Math.round(a.sequencingOkPct)} unit="%"
-            sub={`lag medio ${a.sequencingMeanLagMs != null ? Math.round(a.sequencingMeanLagMs) : "—"} ms`} v={seqv}
-            range={RANGES.seq} rangeVal={a.sequencingOkPct} color={theme.good}
-            explain="% de remates con el orden correcto: el tronco gira y el brazo lo sigue como un látigo. Es la clave de la potencia eficiente."
+            label="Secuencia tronco→brazo" value={Math.round(seqOkPct)} unit="%"
+            sub={`lag medio ${meanLag != null ? Math.round(meanLag) : "—"} ms`} v={seqv}
+            range={RANGES.seq} rangeVal={seqOkPct} color={theme.good}
+            explain="% de remates con el orden correcto: el tronco gira y el brazo lo sigue como un látigo (ideal 40–90 ms después). Es la clave de la potencia eficiente."
           />
         ) : (
           <MetricCard
             label="Secuencia tronco→brazo" value={"—" as any} unit="" sub="datos de tronco insuficientes"
             v={{ key: "na", label: "Recaptura", color: theme.faint }}
             range={RANGES.seq} rangeVal={0} color={theme.faint}
-            explain="Esta sesión no tiene suficientes datos de tronco emparejados. Captura una serie nueva con la app actualizada para medir la secuencia cinética."
+            explain="Esta sesión no tiene suficientes datos de tronco emparejados. Captura una serie nueva con ambos sensores conectados para medir la cadena cinética."
           />
         )}
         <MetricCard
-          label="Consistencia" value={Math.round(a.armConsistencyCvPct)} unit="%"
+          label="Consistencia" value={Math.round(mCv)} unit="%"
           sub="variación entre remates" v={cvv}
-          range={RANGES.cv} rangeVal={a.armConsistencyCvPct} color={theme.good}
-          explain="Cuánto varían tus remates entre sí (CV). Más bajo = más regular. La regularidad es la base para mejorar."
+          range={RANGES.cv} rangeVal={mCv} color={theme.good}
+          explain="Cuánto varían tus picos entre remates (CV). Élite: ≤8 %. La regularidad es la base para mejorar."
         />
         <MetricCard
           label="Explosividad" value={Math.round(ttp)} unit="ms"
           sub="tiempo hasta el pico" v={ttpv}
           range={RANGES.ttp} rangeVal={ttp} color={theme.good}
-          explain="Cuánto tardas en alcanzar la máxima velocidad. Menos ms = gesto más explosivo, tipo látigo."
+          explain="Cuánto tardas en alcanzar la máxima velocidad. Élite: <100 ms. Gesto tipo látigo, no empuje."
         />
       </View>
 
@@ -184,8 +203,8 @@ export default function SessionScreen() {
       )}
 
       {/* REMATE A REMATE */}
-      <SectionHeader title="Remate a remate" hint="análisis individual" />
-      {reps.map((r) => <RepCard key={r.index} rep={r} />)}
+      <SectionHeader title="Remate a remate" hint="nota y consejo de cada uno" />
+      {reps.map((r, i) => <RepCard key={r.index} rep={r} score={repScores[i]!} />)}
 
       {/* CONSEJOS (ocultos si la sesión se ha recalculado: los antiguos no aplican) */}
       {!over && p.tips.length > 0 && (
@@ -318,24 +337,52 @@ function KineticRow({ rep, maxLag }: { rep: SessionPayload["reps"][number]; maxL
   );
 }
 
-function RepCard({ rep }: { rep: SessionPayload["reps"][number] }) {
-  const col = rep.armPeakDps >= 2000 ? theme.good : rep.armPeakDps >= 1200 ? theme.warn : theme.faint;
+const COMPONENT_LABELS: [key: "power" | "chain" | "explosive" | "jumpTiming", label: string][] = [
+  ["power", "Potencia"],
+  ["chain", "Cadena"],
+  ["explosive", "Explosiv."],
+  ["jumpTiming", "Salto"],
+];
+
+function RepCard({ rep, score }: { rep: SessionPayload["reps"][number]; score: RepScorePayload }) {
+  const sv = verdict("quality", score.total);
+  const est = rep.armEstPeakDps ?? rep.armPeakDps;
   return (
     <View style={styles.rep}>
       <View style={styles.repHead}>
-        <View style={styles.repNo}><Text style={styles.repNoText}>{rep.index + 1}</Text></View>
+        <Ring value={score.total} size={46} stroke={5} color={sv.color} big={score.total} />
         <View style={{ flex: 1 }}>
           <Text style={styles.repTitle}>Remate {rep.index + 1}</Text>
-          <Text style={styles.repSub}>{cap(rep.armShape || "gesto")} · {rep.armSaturated ? "pico saturado" : "pico medido"}</Text>
+          <Text style={styles.repSub}>
+            {cap(rep.armShape || "gesto")} · {rep.armSaturated ? `pico est. ${Math.round(est)}°/s` : `pico ${Math.round(rep.armPeakDps)}°/s`}
+            {score.capMax < 99 ? ` · nota máx. ${score.capMax}` : ""}
+          </Text>
         </View>
       </View>
-      <View style={styles.repStats}>
-        <RStat k="Brazo" v={`${Math.round(rep.armPeakDps)}${rep.armSaturated ? "▲" : ""}`} color={col} />
-        <RStat k="Tronco" v={rep.torsoPeakDps != null ? String(rep.torsoPeakDps) : "—"} />
-        <RStat k="Lag" v={rep.lagMs != null ? `${rep.lagMs > 0 ? "+" : ""}${rep.lagMs}` : "—"} />
-        {rep.jumpHeightCm != null ? <RStat k="Salto" v={`${rep.jumpHeightCm}cm`} /> : null}
+      {/* Desglose por componente */}
+      <View style={styles.compRow}>
+        {COMPONENT_LABELS.map(([k, label]) => {
+          const val = score[k];
+          const c = val == null ? theme.faint : val >= 75 ? theme.good : val >= 50 ? theme.warn : theme.bad;
+          return (
+            <View key={k} style={styles.comp}>
+              <Text style={styles.compLabel}>{label}</Text>
+              <View style={styles.compTrack}>
+                <View style={[styles.compFill, { width: `${val ?? 0}%`, backgroundColor: c }]} />
+              </View>
+              <Text style={[styles.compVal, { color: c }]}>{val != null ? val : "—"}</Text>
+            </View>
+          );
+        })}
       </View>
-      <Text style={styles.repNote}>{repNote(rep)}</Text>
+      <View style={styles.repStats}>
+        <RStat k="Tronco" v={rep.torsoPeakDps != null ? `${rep.torsoPeakDps}°/s` : "—"} />
+        <RStat k="Lag" v={rep.lagMs != null ? `${rep.lagMs > 0 ? "+" : ""}${rep.lagMs}ms` : "—"} />
+        <RStat k="Armado" v={Number.isFinite(rep.armTimeToPeakMs) ? `${Math.round(rep.armTimeToPeakMs)}ms` : "—"} />
+        {rep.jumpHeightCm != null ? <RStat k="Salto" v={`${rep.jumpHeightCm}cm`} /> : null}
+        {rep.contactInFlightPct != null ? <RStat k="Golpe en" v={`${rep.contactInFlightPct}%`} /> : null}
+      </View>
+      <Text style={styles.repNote}>{score.advice}</Text>
     </View>
   );
 }
@@ -371,6 +418,7 @@ const styles = StyleSheet.create({
   tagText: { fontSize: 11, fontWeight: "800", letterSpacing: 0.5, textTransform: "uppercase" },
   heroTitle: { color: theme.text, fontSize: 20, fontWeight: "800", marginTop: 8, letterSpacing: -0.3 },
   heroSub: { color: theme.muted, fontSize: 13.5, marginTop: 2, lineHeight: 19 },
+  capNote: { color: theme.faint, fontSize: 11.5, lineHeight: 16, marginTop: 12, paddingTop: 10, borderTopWidth: 1, borderTopColor: theme.hair },
   metaRow: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginTop: 14 },
   metaChip: { backgroundColor: "rgba(17,27,46,0.04)", borderWidth: 1, borderColor: theme.hair, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 6 },
   metaChipText: { fontSize: 12, color: theme.muted },
@@ -429,6 +477,12 @@ const styles = StyleSheet.create({
   repNoText: { fontWeight: "800", fontSize: 15, color: theme.arm },
   repTitle: { fontWeight: "800", fontSize: 14, color: theme.text },
   repSub: { fontSize: 12, color: theme.faint, marginTop: 1 },
+  compRow: { flexDirection: "row", gap: 10, marginBottom: 12 },
+  comp: { flex: 1 },
+  compLabel: { fontSize: 9.5, color: theme.faint, textTransform: "uppercase", letterSpacing: 0.3, marginBottom: 4 },
+  compTrack: { height: 5, borderRadius: 999, backgroundColor: theme.bg2, overflow: "hidden" },
+  compFill: { height: 5, borderRadius: 999 },
+  compVal: { fontSize: 12, fontWeight: "800", marginTop: 3 },
   repStats: { flexDirection: "row", gap: 8, flexWrap: "wrap", marginBottom: 10 },
   rstat: { backgroundColor: theme.bg2, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 7, minWidth: 72 },
   rstatK: { fontSize: 10, color: theme.faint, textTransform: "uppercase", letterSpacing: 0.4 },

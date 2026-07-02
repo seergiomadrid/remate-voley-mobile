@@ -1,11 +1,23 @@
 /** Construye el payload serializable de una sesión a partir del análisis. */
-import type { AnalyzeResult, ResampledStream } from "@core";
+import type { AnalyzeResult, ResampledStream, RepScore } from "@core";
 
 export interface TracePayload {
   t: number[];
   gyro: number[];
   acc: number[];
   peaks: number[];
+}
+
+/** Nota serializada de un remate (modelo élite). */
+export interface RepScorePayload {
+  total: number;
+  capMax: number;
+  power: number | null;
+  chain: number | null;
+  explosive: number | null;
+  jumpTiming: number | null;
+  weakest: string | null;
+  advice: string;
 }
 
 export interface SessionPayload {
@@ -19,6 +31,7 @@ export interface SessionPayload {
     index: number;
     timeMs: number;
     armPeakDps: number;
+    armEstPeakDps: number;
     armSaturated: boolean;
     armTimeToPeakMs: number;
     armShape: string;
@@ -29,8 +42,24 @@ export interface SessionPayload {
     flightTimeS: number | null;
     contactInFlightPct: number | null;
     contactAccG: number;
+    score: RepScorePayload | null;
   }[];
   traces: { arm: TracePayload; torso: TracePayload | null };
+}
+
+function packScore(s: RepScore | undefined): RepScorePayload | null {
+  if (!s) return null;
+  const r1 = (v: number | null) => (v != null ? Math.round(v) : null);
+  return {
+    total: Math.round(s.total),
+    capMax: Math.round(s.capMax),
+    power: r1(s.components.power.score),
+    chain: r1(s.components.chain.score),
+    explosive: r1(s.components.explosive.score),
+    jumpTiming: r1(s.components.jumpTiming.score),
+    weakest: s.weakest,
+    advice: s.advice,
+  };
 }
 
 function downsample(stream: ResampledStream, peaks: number[], maxPoints = 600): TracePayload {
@@ -59,6 +88,7 @@ export function buildSessionPayload(result: AnalyzeResult, startedAtMs: number):
       index: r.index,
       timeMs: Math.round(r.timeMs),
       armPeakDps: Math.round(r.arm.peakGyroDps),
+      armEstPeakDps: Math.round(r.arm.estPeakGyroDps),
       armSaturated: r.arm.peakGyroSaturated,
       armTimeToPeakMs: Math.round(r.arm.timeToPeakMs),
       armShape: r.arm.shape,
@@ -69,6 +99,7 @@ export function buildSessionPayload(result: AnalyzeResult, startedAtMs: number):
       flightTimeS: r.jump.flightTimeS != null ? Math.round(r.jump.flightTimeS * 100) / 100 : null,
       contactInFlightPct: r.jump.contactInFlightPct != null ? Math.round(r.jump.contactInFlightPct) : null,
       contactAccG: Math.round(r.contact.contactAccG * 10) / 10,
+      score: packScore(r.score),
     })),
     traces: {
       arm: downsample(result.prepared.arm, result.prepared.armPeaks),

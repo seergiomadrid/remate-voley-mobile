@@ -1,17 +1,22 @@
-/** Análisis en lenguaje claro: foco de mejora, notas por remate y rangos ideales. */
-import type { SessionPayload } from "@/analysis/persist";
+/**
+ * Análisis en lenguaje claro sobre el payload de sesión: notas por remate con
+ * el modelo élite del core (mismas curvas, importadas), foco de mejora y
+ * reconsolidación de sesiones antiguas sobredetectadas.
+ */
+import {
+  scorePower, scoreChainLag, scoreTorsoMag, scoreExplosive, scoreJumpTiming,
+  scoreConsistency, QUALITY_WEIGHTS,
+} from "@core";
+import type { SessionPayload, RepScorePayload } from "@/analysis/persist";
 
 type Rep = SessionPayload["reps"][number];
-type Agg = SessionPayload["aggregates"];
 
 const avg = (a: number[]) => (a.length ? a.reduce((s, v) => s + v, 0) / a.length : 0);
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-/**
- * Reconsolida remates de sesiones antiguas con sobreconteo (mismo criterio que
- * el motor: umbral = max(1100, 0.55·pico) + refractario 3 s). Idempotente para
- * sesiones nuevas ya correctas.
- */
+/* ---------- reconsolidación (sesiones antiguas con sobreconteo) ---------- */
+
+/** Mismo criterio que el motor: umbral = max(1100, 0.55·pico) + refractario 3 s. */
 export function consolidateReps(reps: Rep[]): Rep[] {
   if (!reps.length) return reps;
   const mx = Math.max(...reps.map((r) => r.armPeakDps));
@@ -23,37 +28,157 @@ export function consolidateReps(reps: Rep[]): Rep[] {
   return kept.map((r, i) => ({ ...r, index: i }));
 }
 
-/** ¿La sesión está sobredetectada? (el filtro reduce a menos del 60%). */
+/** ¿La sesión está sobredetectada? (el filtro reduce a menos del 60 %). */
 export function isOverDetected(reps: Rep[]): boolean {
   const c = consolidateReps(reps);
   return c.length > 0 && c.length < reps.length * 0.6;
 }
 
-/** Recalcula los agregados clave desde un conjunto de remates. */
-export function recomputeAggregates(reps: Rep[], base: Agg): Agg {
-  const pk = reps.map((r) => r.armPeakDps);
-  const meanP = avg(pk);
-  const m = meanP;
-  const cv = m > 0 ? (Math.sqrt(avg(pk.map((v) => (v - m) ** 2))) / m) * 100 : 0;
-  const paired = reps.filter((r) => r.lagMs != null);
-  const okPct = paired.length ? (paired.filter((r) => r.sequencingOk).length / paired.length) * 100 : 0;
-  const useSeq = paired.length >= 2;
-  const speed = clamp((meanP / 2000) * 100, 0, 100);
-  const cons = clamp(100 - cv, 0, 100);
-  const quality = useSeq ? 0.4 * speed + 0.3 * okPct + 0.3 * cons : 0.6 * speed + 0.4 * cons;
-  const jh = reps.map((r) => r.jumpHeightCm).filter((x): x is number => x != null);
-  return {
-    ...base,
-    repCount: reps.length,
-    armPeakBestDps: Math.max(...pk),
-    armPeakMeanDps: meanP,
-    armConsistencyCvPct: cv,
-    sequencingOkPct: okPct,
-    sequencingMeanLagMs: paired.length ? avg(paired.map((r) => r.lagMs!)) : null,
-    load: pk.reduce((s, p) => s + p / 1000, 0),
-    qualityIndex: quality,
-    jumpBestCm: jh.length ? Math.max(...jh) : null,
+/* ---------- nota por remate (modelo élite, mismas curvas que el core) ---------- */
+
+export function scorePayloadRep(r: Rep): RepScorePayload {
+  if (r.score) return r.score; // sesiones nuevas ya traen la nota del motor
+
+  const est = r.armEstPeakDps ?? r.armPeakDps;
+  const power = scorePower(est);
+  const chain = r.lagMs != null && r.torsoPeakDps != null
+    ? 0.6 * scoreChainLag(r.lagMs) + 0.4 * scoreTorsoMag(r.torsoPeakDps)
+    : null;
+  const explosive = Number.isFinite(r.armTimeToPeakMs) ? scoreExplosive(r.armTimeToPeakMs) : null;
+  const jumpTiming = r.contactInFlightPct != null ? scoreJumpTiming(r.contactInFlightPct) : null;
+
+  const comps: [keyof typeof QUALITY_WEIGHTS, number | null][] = [
+    ["power", power], ["chain", chain], ["explosive", explosive], ["jumpTiming", jumpTiming],
+  ];
+  let raw = 0, capMax = 0;
+  let weakest: string | null = null, weakestScore = Infinity;
+  for (const [k, s] of comps) {
+    if (s == null) continue;
+    raw += QUALITY_WEIGHTS[k] * s;
+    capMax += QUALITY_WEIGHTS[k] * 100;
+    if (s < weakestScore) { weakestScore = s; weakest = k; }
+  }
+
+  const score: RepScorePayload = {
+    total: Math.round(Math.min(raw, capMax)),
+    capMax: Math.round(capMax),
+    power: Math.round(power),
+    chain: chain != null ? Math.round(chain) : null,
+    explosive: explosive != null ? Math.round(explosive) : null,
+    jumpTiming: jumpTiming != null ? Math.round(jumpTiming) : null,
+    weakest,
+    advice: "",
   };
+  score.advice = adviceForPayload(r, score);
+  return score;
+}
+
+function adviceForPayload(r: Rep, s: RepScorePayload): string {
+  const missing: string[] = [];
+  if (s.chain == null) missing.push("tronco");
+  if (s.jumpTiming == null) missing.push("salto");
+  const parts: string[] = [];
+  switch (s.weakest) {
+    case "power":
+      parts.push(`Pico de ${Math.round(r.armEstPeakDps ?? r.armPeakDps)} °/s: lejos del rango élite (≥2600). Trabaja el latigazo final de antebrazo y muñeca.`);
+      break;
+    case "chain":
+      if (r.lagMs != null && r.lagMs < 10) parts.push(`El brazo llegó ${r.lagMs <= 0 ? "antes que" : "casi a la vez que"} el tronco (${Math.round(r.lagMs)} ms): golpeas "solo de brazo". Inicia la rotación del tronco antes.`);
+      else if (r.lagMs != null && r.lagMs > 130) parts.push(`El brazo tardó ${Math.round(r.lagMs)} ms tras el tronco: la energía del giro se pierde. Encadena el brazo justo después.`);
+      else if ((r.torsoPeakDps ?? 0) < 450) parts.push(`El tronco solo rotó a ${Math.round(r.torsoPeakDps ?? 0)} °/s (élite: 600–900). Genera el golpe desde la cadera y el tronco.`);
+      else parts.push("Ajusta el encadenado tronco→brazo hacia un lag de 40–90 ms.");
+      break;
+    case "explosive":
+      parts.push(`Armado lento: ${Math.round(r.armTimeToPeakMs)} ms hasta el pico (élite <100). Gesto corto y explosivo, no empujar.`);
+      break;
+    case "jumpTiming": {
+      const p = r.contactInFlightPct!;
+      parts.push(p < 45
+        ? `Golpeas subiendo (${Math.round(p)} % del vuelo): retrasa el golpe hasta el punto más alto.`
+        : `Golpeas cayendo (${Math.round(p)} % del vuelo): adelanta el armado para llegar arriba.`);
+      break;
+    }
+    default:
+      if (!missing.length) parts.push("Remate sólido en todos los componentes medidos.");
+  }
+  if (missing.length) parts.push(`Sin datos de ${missing.join(" y ")}: nota capada a ${s.capMax}.`);
+  return parts.join(" ");
+}
+
+/* ---------- índice de sesión estricto ---------- */
+
+export interface StrictSession {
+  index: number;
+  capMax: number;
+  consistencyScore: number;
+  repScores: RepScorePayload[];
+}
+
+export function strictSession(reps: Rep[]): StrictSession {
+  if (!reps.length) return { index: 0, capMax: 0, consistencyScore: 0, repScores: [] };
+  const repScores = reps.map(scorePayloadRep);
+  const meanRep = avg(repScores.map((s) => s.total));
+  const capMax = avg(repScores.map((s) => s.capMax));
+  const peaks = reps.map((r) => r.armEstPeakDps ?? r.armPeakDps);
+  const m = avg(peaks);
+  const cv = m > 0 ? (Math.sqrt(avg(peaks.map((v) => (v - m) ** 2))) / m) * 100 : 100;
+  const consistencyScore = reps.length >= 3 ? scoreConsistency(cv) : 50;
+  return {
+    index: Math.min(0.85 * meanRep + 0.15 * consistencyScore, capMax),
+    capMax,
+    consistencyScore,
+    repScores,
+  };
+}
+
+/* ---------- foco de mejora y textos ---------- */
+
+export interface Focus { tag: string; title: string; body: string; }
+
+export function buildFocus(repScores: RepScorePayload[]): Focus {
+  const meanOf = (k: "power" | "chain" | "explosive" | "jumpTiming") => {
+    const xs = repScores.map((s) => s[k]).filter((v): v is number => v != null);
+    return xs.length ? avg(xs) : null;
+  };
+  const entries: [Focus, number | null][] = [
+    [{ tag: "Foco principal", title: "Secuencia tronco → brazo", body: "Tu cadena cinética es lo que más margen tiene. El tronco debe girar primero y el brazo seguirlo como un látigo (40–90 ms después). Inicia el golpe desde la rotación de cadera y tronco, no desde el hombro." }, meanOf("chain")],
+    [{ tag: "Foco principal", title: "Explosividad del armado", body: "Tu gesto tarda demasiado en llegar al pico. Piensa en un armado corto y un latigazo final rápido: la potencia nace de acelerar el último tramo, no de empujar el balón." }, meanOf("explosive")],
+    [{ tag: "Foco principal", title: "Timing del salto", body: "No estás golpeando en el punto más alto del vuelo. Ajusta la batida y el armado para contactar el balón cerca del 50 % del salto, con el brazo extendido arriba." }, meanOf("jumpTiming")],
+    [{ tag: "Foco principal", title: "Potencia de brazo", body: "Hay margen de velocidad en la muñeca. Trabaja el latigazo final (antebrazo y muñeca) y la transferencia desde el tronco: la élite supera los 2600 °/s." }, meanOf("power")],
+  ];
+  const measured = entries.filter(([, v]) => v != null) as [Focus, number][];
+  if (!measured.length) {
+    return { tag: "Datos incompletos", title: "Captura con ambos sensores", body: "No hay componentes suficientes medidos para priorizar. Asegura la conexión de ambos sensores y repite la serie." };
+  }
+  measured.sort((a, b) => a[1] - b[1]);
+  const [focus, score] = measured[0]!;
+  if (score >= 80) {
+    return { tag: "Nivel alto", title: "Pulir y consolidar", body: "Tus componentes medidos están a buen nivel. El siguiente salto es la consistencia: repetir este patrón bajo fatiga y en juego real." };
+  }
+  return focus;
+}
+
+/** Veredicto de sesión, objetivo y sin inflar. */
+export const QUALITY_VERDICT = (q: number): string =>
+  q >= 90 ? "Nivel élite en lo medido. Excepcional."
+  : q >= 75 ? "Remate de alto nivel. Pule los detalles."
+  : q >= 60 ? "Base sólida con margen claro en componentes concretos."
+  : q >= 45 ? "En construcción: hay déficits técnicos medibles que corregir."
+  : "Lejos aún del patrón objetivo. Trabaja los focos indicados.";
+
+export interface Range { min: number; max: number; a: number; b: number; invert?: boolean; }
+/** Rangos para las barras (escala élite). */
+export const RANGES = {
+  peak: { min: 500, max: 3000, a: 2300, b: 3000 } as Range,
+  seq: { min: 0, max: 100, a: 60, b: 100 } as Range,
+  cv: { min: 0, max: 50, a: 0, b: 8, invert: true } as Range,
+  ttp: { min: 50, max: 300, a: 50, b: 100, invert: true } as Range,
+};
+
+/** Frase descriptiva de un remate (fallback si no hay advice del motor). */
+export function repNote(r: Rep): string {
+  const s = scorePayloadRep(r);
+  return s.advice || "—";
 }
 
 export interface JumpStats { bestCm: number | null; meanFlightS: number | null; meanTimingPct: number | null; }
@@ -67,56 +192,3 @@ export function jumpStats(reps: Rep[]): JumpStats {
     meanTimingPct: ti.length ? avg(ti) : null,
   };
 }
-
-/** Frase descriptiva de un remate concreto. */
-export function repNote(r: Rep): string {
-  const power = r.armPeakDps >= 2000
-    ? "Remate muy potente" + (r.armSaturated ? " (saturó el sensor)" : "")
-    : r.armPeakDps >= 1200 ? "Remate potente" : "Remate suave";
-  let seq: string;
-  if (r.lagMs == null) seq = "no se detectó el tronco en este remate";
-  else if (r.lagMs >= 10 && r.lagMs <= 150) seq = `buena secuencia: el tronco lideró y el brazo lo siguió (${r.lagMs} ms)`;
-  else if (r.lagMs < 10) seq = `el brazo se adelantó al tronco (${r.lagMs} ms): pierdes potencia de la cadena`;
-  else seq = `el brazo tardó mucho tras el tronco (+${r.lagMs} ms): se rompe la conexión`;
-  return `${power}. ${seq.charAt(0).toUpperCase()}${seq.slice(1)}.`;
-}
-
-export interface Focus { tag: string; title: string; body: string; }
-
-/** Elige el área de mejora prioritaria de la sesión. */
-export function buildFocus(a: Agg): Focus {
-  if (a.sequencingOkPct < 40) return {
-    tag: "Foco principal", title: "Secuencia tronco → brazo",
-    body: "Tu cadena cinética es lo que más margen tiene. En un buen remate el tronco gira primero y el brazo lo sigue como un látigo (10–150 ms después). Trabaja iniciar el golpe desde la rotación del tronco, no solo con el brazo.",
-  };
-  if (a.armConsistencyCvPct > 28) return {
-    tag: "Foco principal", title: "Consistencia del gesto",
-    body: "Tus remates varían bastante entre sí. Busca repetir la misma mecánica: misma carrera, mismo armado y mismo punto de contacto. La regularidad es la base para luego subir potencia.",
-  };
-  if (a.armPeakMeanDps < 1500) return {
-    tag: "Foco principal", title: "Potencia y explosividad",
-    body: "Hay margen para golpear más fuerte. Trabaja la velocidad del armado y el latigazo final de muñeca; la potencia nace de acelerar en el último tramo, no de empujar.",
-  };
-  return {
-    tag: "Vas muy bien", title: "Mantén y pule",
-    body: "Tu técnica es sólida. Sigue afinando la consistencia y la sincronización para subir el último escalón.",
-  };
-}
-
-/** Media de time-to-peak de la sesión (explosividad). */
-export function avgTimeToPeak(p: SessionPayload): number {
-  const xs = p.reps.map((r) => r.armTimeToPeakMs).filter((v) => v != null && !isNaN(v));
-  return xs.length ? xs.reduce((s, v) => s + v, 0) / xs.length : 0;
-}
-
-export const QUALITY_VERDICT = (q: number): string =>
-  q >= 72 ? "Gran sesión, técnica sólida." : q >= 48 ? "Buena base, con margen claro de mejora." : "Sesión para construir técnica desde la base.";
-
-export interface Range { min: number; max: number; a: number; b: number; invert?: boolean; }
-/** Rangos ideales para la barra visual de cada métrica. */
-export const RANGES = {
-  peak: { min: 500, max: 2200, a: 1300, b: 2200 } as Range,
-  seq: { min: 0, max: 100, a: 60, b: 100 } as Range,
-  cv: { min: 0, max: 50, a: 0, b: 15, invert: true } as Range,
-  ttp: { min: 50, max: 260, a: 50, b: 120, invert: true } as Range,
-};

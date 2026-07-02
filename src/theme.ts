@@ -45,20 +45,28 @@ export function sevColor(s: Sev): string {
 
 export interface Verdict { key: Sev; label: string; color: string; }
 
-/** Veredicto en lenguaje claro para cada tipo de métrica. */
+/**
+ * Veredicto en lenguaje claro para cada tipo de métrica.
+ * Escala ÉLITE estricta: "bien" exige nivel alto de verdad; los umbrales están
+ * anclados a valores de jugador profesional, no al mejor gesto personal.
+ */
 export function verdict(kind: "quality" | "seq" | "cv" | "ttp" | "peak", v: number | null): Verdict {
   if (v == null || isNaN(v)) return { key: "na", label: "—", color: theme.faint };
   let k: Sev;
-  if (kind === "quality") k = v >= 72 ? "good" : v >= 48 ? "warn" : "bad";
-  else if (kind === "seq") k = v >= 60 ? "good" : v >= 30 ? "warn" : "bad";
-  else if (kind === "cv") k = v <= 15 ? "good" : v <= 28 ? "warn" : "bad";
-  else if (kind === "ttp") k = v <= 120 ? "good" : v <= 180 ? "warn" : "bad";
-  else k = v >= 2000 ? "good" : v >= 1300 ? "warn" : "bad"; // peak
-  const labels: Record<Exclude<Sev, "na">, string> = { good: "Bien", warn: "Mejorable", bad: "A trabajar" };
-  // etiquetas específicas para potencia
-  if (kind === "peak") {
-    return { key: k, label: k === "good" ? "Potente" : k === "warn" ? "Correcto" : "Suave", color: sevColor(k) };
+  if (kind === "quality") k = v >= 75 ? "good" : v >= 50 ? "warn" : "bad";
+  else if (kind === "seq") k = v >= 70 ? "good" : v >= 40 ? "warn" : "bad";
+  else if (kind === "cv") k = v <= 8 ? "good" : v <= 18 ? "warn" : "bad";
+  else if (kind === "ttp") k = v <= 100 ? "good" : v <= 160 ? "warn" : "bad";
+  else k = v >= 2600 ? "good" : v >= 1800 ? "warn" : "bad"; // peak (élite ≥2600)
+
+  if (kind === "quality") {
+    const label = v >= 90 ? "Élite" : v >= 75 ? "Alto nivel" : v >= 60 ? "Sólido" : v >= 45 ? "En construcción" : "A trabajar";
+    return { key: k, label, color: sevColor(k) };
   }
+  if (kind === "peak") {
+    return { key: k, label: k === "good" ? "Nivel élite" : k === "warn" ? "Potente" : "Mejorable", color: sevColor(k) };
+  }
+  const labels: Record<Exclude<Sev, "na">, string> = { good: "Bien", warn: "Mejorable", bad: "A trabajar" };
   return { key: k, label: labels[k], color: sevColor(k) };
 }
 

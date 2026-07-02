@@ -32,9 +32,14 @@ function torsoPeakBefore(torso: ResampledStream, tArmMs: number, maxDelayMs: num
   const lo = Math.max(0, Math.round((tArmMs - maxDelayMs - torso.t[0]!) / step));
   const hi = Math.min(torso.t.length - 1, Math.round((tArmMs + 50 - torso.t[0]!) / step));
   let bestI = -1, bestV = -Infinity;
+  let measured = 0;
   for (let i = lo; i <= hi; i++) {
+    if (torso.gap[i]) continue; // interpolación tras desconexión: no es medida
+    measured++;
     if (torso.gyroSmooth[i]! > bestV) { bestV = torso.gyroSmooth[i]!; bestI = i; }
   }
+  // Exigimos que la ventana esté mayormente medida para acreditar la cadena.
+  if (measured < (hi - lo + 1) * 0.5) return null;
   return bestI >= 0 && bestV >= TORSO_MIN_DPS ? bestI : null;
 }
 

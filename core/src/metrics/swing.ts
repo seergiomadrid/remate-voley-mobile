@@ -54,10 +54,32 @@ export function swingMetricsAt(stream: ResampledStream, peakIdx: number, windowM
   const peakGyroSaturated = anySaturated(stream.gyroSaturated, peakIdx - satHalf, peakIdx + satHalf);
   const peakAccSaturated = anySaturated(stream.accSaturated, lo, hi);
 
+  // Estimación del pico real cuando satura: un pulso recortado a nivel L con
+  // meseta de duración T y pendiente de subida m tiene ápice ≈ L + m·T/2.
+  let estPeakGyroDps = peakValue;
+  if (peakGyroSaturated) {
+    // Duración del recorte: muestras marcadas como saturadas alrededor del pico.
+    let satLo = peakIdx;
+    let satHi = peakIdx;
+    const satSearch = Math.round(120 / step);
+    while (satLo > Math.max(0, peakIdx - satSearch) && stream.gyroSaturated[satLo - 1]) satLo--;
+    while (satHi < Math.min(t.length - 1, peakIdx + satSearch) && stream.gyroSaturated[satHi + 1]) satHi++;
+    const dwellMs = (satHi - satLo + 1) * step;
+    // Pendiente del flanco de subida justo antes de entrar en saturación (dps/ms).
+    const flankN = Math.max(1, Math.round(40 / step));
+    const f0 = Math.max(lo, satLo - flankN);
+    const slope = satLo > f0 ? (gyroSmooth[satLo]! - gyroSmooth[f0]!) / ((satLo - f0) * step) : 0;
+    if (slope > 0 && dwellMs > 0) {
+      // Cap conservador: la magnitud 3D con ejes recortados a ±2294 no supera ~3200.
+      estPeakGyroDps = Math.min(3200, Math.max(peakValue, peakValue + (slope * dwellMs) / 2));
+    }
+  }
+
   return {
     peakTimeMs,
     peakGyroDps: peakValue,
     peakGyroSaturated,
+    estPeakGyroDps,
     peakAccG,
     peakAccSaturated,
     timeToPeakMs,

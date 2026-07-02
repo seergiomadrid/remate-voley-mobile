@@ -1,9 +1,8 @@
 /** Estadísticas agregadas de una sesión a partir de las repeticiones. */
 
-import { clamp, mean, std } from "../signal/stats.js";
+import { mean, std } from "../signal/stats.js";
+import { scoreRep, scoreSession } from "./quality.js";
 import type { Rep, SessionAggregates } from "../types.js";
-
-const ARM_SPEED_REFERENCE_DPS = 2000; // referencia para normalizar (saturación del sensor)
 
 export function computeAggregates(reps: Rep[]): SessionAggregates {
   const repCount = reps.length;
@@ -24,6 +23,7 @@ export function computeAggregates(reps: Rep[]): SessionAggregates {
       fatigueDropPct: null,
       load: 0,
       qualityIndex: 0,
+      qualityCapMax: 0,
     };
   }
 
@@ -63,12 +63,12 @@ export function computeAggregates(reps: Rep[]): SessionAggregates {
   // Carga de la sesión (proxy de volumen×intensidad).
   const load = armPeaks.reduce((s, p) => s + p / 1000, 0);
 
-  // Índice compuesto de calidad (0–100).
-  const armSpeedScore = clamp((armPeakMeanDps / ARM_SPEED_REFERENCE_DPS) * 100, 0, 100);
-  const consistencyScore = clamp(100 - armConsistencyCvPct, 0, 100);
-  const qualityIndex = paired.length
-    ? 0.4 * armSpeedScore + 0.3 * sequencingOkPct + 0.3 * consistencyScore
-    : 0.6 * armSpeedScore + 0.4 * consistencyScore;
+  // Índice de calidad (modelo élite, estricto y capado por datos medidos).
+  // Se asegura que cada rep tenga su nota (el pipeline ya la adjunta).
+  for (const r of reps) if (!r.score) r.score = scoreRep(r);
+  const sessionQ = scoreSession(reps, reps.map((r) => r.score!));
+  const qualityIndex = sessionQ.index;
+  const qualityCapMax = sessionQ.capMax;
 
   return {
     repCount,
@@ -86,5 +86,6 @@ export function computeAggregates(reps: Rep[]): SessionAggregates {
     fatigueDropPct,
     load,
     qualityIndex,
+    qualityCapMax,
   };
 }

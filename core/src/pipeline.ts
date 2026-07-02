@@ -4,6 +4,7 @@
  */
 
 import { computeAggregates } from "./metrics/session.js";
+import { scoreRep } from "./metrics/quality.js";
 import { buildReps } from "./metrics/sequencing.js";
 import { generateTips } from "./coaching.js";
 import { prepareStreams } from "./prepare.js";
@@ -59,13 +60,16 @@ export function analyzeSession(
   // Un remate real está muy por encima de los movimientos de aproximación/armado.
   const armMax = arrMax(ra.gyroSmooth);
   const spikeHeight = Math.max(SPIKE_MIN_DPS, SPIKE_REL_FRACTION * armMax);
-  const armPeaks = findPeaks(ra.gyroSmooth, { height: spikeHeight, minDistance });
+  const armPeaks = findPeaks(ra.gyroSmooth, { height: spikeHeight, minDistance })
+    // Descarta picos en zonas de hueco (interpolación tras desconexión, no medida).
+    .filter((i) => !ra.gap[i]);
   // Picos de torso solo para visualización (umbral moderado, refractario corto).
   const torsoPeaks = rt
     ? findPeaks(rt.gyroSmooth, { k: 1.2, minDistance: Math.max(1, Math.round(800 / step)) })
     : [];
 
   const reps = buildReps(ra, rt, armPeaks, torsoPeaks, windowMs);
+  for (const r of reps) r.score = scoreRep(r);
   const aggregates = computeAggregates(reps);
   const tips = generateTips(aggregates, reps);
 

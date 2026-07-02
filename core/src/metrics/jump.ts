@@ -38,9 +38,11 @@ export function detectJump(torso: ResampledStream, contactMs: number): JumpMetri
   const hi = Math.min(t.length - 1, Math.round((contactMs + 900 - t[0]!) / step));
 
   // Tramo de caída libre (baja aceleración) más largo dentro de la ventana.
+  // Las muestras en hueco (interpolación tras desconexión) NO cuentan como
+  // caída libre: un hueco interpolado a baja aceleración simularía un vuelo falso.
   let bestStart = -1, bestLen = 0, curStart = -1;
   for (let i = lo; i <= hi; i++) {
-    if (accMag[i]! < FREEFALL_THRESHOLD_G) {
+    if (accMag[i]! < FREEFALL_THRESHOLD_G && !torso.gap[i]) {
       if (curStart < 0) curStart = i;
     } else if (curStart >= 0) {
       if (i - curStart > bestLen) { bestLen = i - curStart; bestStart = curStart; }

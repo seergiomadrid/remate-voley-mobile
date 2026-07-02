@@ -53,6 +53,11 @@ export interface ResampledStream {
   /** true si alguna muestra de la ventana original estaba saturada. */
   gyroSaturated: Uint8Array;
   accSaturated: Uint8Array;
+  /**
+   * true si la muestra cae en un hueco de datos (p. ej. desconexión BLE) y su
+   * valor es interpolación, no medida. Los detectores deben ignorar estas zonas.
+   */
+  gap: Uint8Array;
 }
 
 /** Métricas de un swing detectado en un único sensor. */
@@ -63,6 +68,11 @@ export interface SwingMetrics {
   peakGyroDps: number;
   /** true si el pico está saturado (subestimado). */
   peakGyroSaturated: boolean;
+  /**
+   * Estimación del pico real cuando satura, extrapolando por la pendiente del
+   * flanco y la duración del recorte. Si no satura, coincide con peakGyroDps.
+   */
+  estPeakGyroDps: number;
   /** Pico de aceleración resultante en la ventana (g). */
   peakAccG: number;
   peakAccSaturated: boolean;
@@ -101,6 +111,32 @@ export interface JumpMetrics {
   contactInFlightPct: number | null;
 }
 
+/** Un componente de la nota de un remate. */
+export interface RepScoreComponent {
+  /** Puntuación 0–100, o null si el componente no se pudo medir. */
+  score: number | null;
+  /** Valor medido en el que se basa (para mostrar). */
+  value: number | null;
+}
+
+/** Nota de un remate, con desglose por componente y consejo. */
+export interface RepScore {
+  /** Nota 0–100, ya limitada por capMax. */
+  total: number;
+  /** Máximo alcanzable con los datos disponibles (100 = todo medido). */
+  capMax: number;
+  components: {
+    power: RepScoreComponent;
+    chain: RepScoreComponent;
+    explosive: RepScoreComponent;
+    jumpTiming: RepScoreComponent;
+  };
+  /** Componente medido más débil, o null. */
+  weakest: "power" | "chain" | "explosive" | "jumpTiming" | null;
+  /** Consejo concreto derivado del punto más débil / datos faltantes. */
+  advice: string;
+}
+
 /** Una repetición (remate) emparejando torso y brazo. */
 export interface Rep {
   index: number;
@@ -114,6 +150,8 @@ export interface Rep {
   sequencingLagMs: number | null;
   /** true si el orden proximal→distal es correcto y dentro del rango bueno. */
   sequencingOk: boolean;
+  /** Nota del remate (modelo élite). La adjunta el pipeline. */
+  score?: RepScore;
 }
 
 /** Estadísticas agregadas de una sesión. */
@@ -141,8 +179,10 @@ export interface SessionAggregates {
   fatigueDropPct: number | null;
   /** Carga de la sesión (suma de intensidad ~ volumen×intensidad). */
   load: number;
-  /** Índice compuesto de calidad de remate (0–100). */
+  /** Índice compuesto de calidad (0–100), escala élite estricta y capado por datos. */
   qualityIndex: number;
+  /** Máximo alcanzable del índice con los datos medidos en esta sesión. */
+  qualityCapMax: number;
 }
 
 /** Un consejo del motor de feedback. */

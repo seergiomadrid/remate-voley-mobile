@@ -42,6 +42,10 @@ interface Board {
   sensor: SensorId;
   deviceName: string;
   device: Device | null;
+  /** Último identificador BLE conocido, para reconectar sin re-escanear. */
+  lastDeviceId: string | null;
+  /** true mientras hay un bucle de reconexión activo para esta placa. */
+  reconnecting: boolean;
   parser: ReturnType<typeof createBinaryParser>;
   samples: SensorSample[];
   state: BoardState;
@@ -59,9 +63,11 @@ class RemateBle {
   private error?: string;
 
   private boards: Record<"ARM" | "TORSO", Board> = {
-    ARM: { sensor: "ARM", deviceName: DEVICE_ARM, device: null, parser: createBinaryParser(), samples: [], state: emptyBoardState("ARM") },
-    TORSO: { sensor: "TORSO", deviceName: DEVICE_TORSO, device: null, parser: createBinaryParser(), samples: [], state: emptyBoardState("TORSO") },
+    ARM: { sensor: "ARM", deviceName: DEVICE_ARM, device: null, lastDeviceId: null, reconnecting: false, parser: createBinaryParser(), samples: [], state: emptyBoardState("ARM") },
+    TORSO: { sensor: "TORSO", deviceName: DEVICE_TORSO, device: null, lastDeviceId: null, reconnecting: false, parser: createBinaryParser(), samples: [], state: emptyBoardState("TORSO") },
   };
+  /** Mientras sea true, una desconexión dispara reconexión automática. */
+  private autoReconnect = true;
 
   subscribe(cb: Listener): () => void {
     this.listeners.add(cb);
@@ -115,6 +121,7 @@ class RemateBle {
     }
 
     this.error = undefined;
+    this.autoReconnect = true;
     this.scanning = true;
     this.emit();
 
@@ -164,26 +171,36 @@ class RemateBle {
     }
   }
 
+  /** Configura una conexión ya establecida: descubrimiento, notify y reconexión. */
+  private async setupConnection(board: Board, connected: Device): Promise<void> {
+    board.device = connected;
+    board.lastDeviceId = connected.id;
+    await connected.discoverAllServicesAndCharacteristics();
+    board.state.connected = true;
+    this.error = undefined;
+    this.emit();
+
+    connected.onDisconnected(() => {
+      board.state.connected = false;
+      board.device = null;
+      this.emit();
+      // Reconexión automática: una desconexión (apantallamiento del cuerpo,
+      // impacto, etc.) no debe matar la sesión. La placa sigue muestreando en
+      // su reloj; el hueco queda marcado y el análisis lo ignora.
+      if (this.autoReconnect) void this.reconnectLoop(board);
+    });
+
+    connected.monitorCharacteristicForService(NUS_SERVICE, NUS_TX, (err, char) => {
+      if (err || !char?.value) return;
+      this.onData(board, base64ToBytes(char.value));
+    });
+  }
+
   private async connectBoard(board: Board, device: Device, attempts = 3): Promise<void> {
     for (let attempt = 1; attempt <= attempts; attempt++) {
       try {
         const connected = await device.connect({ requestMTU: 247 });
-        board.device = connected;
-        await connected.discoverAllServicesAndCharacteristics();
-        board.state.connected = true;
-        this.error = undefined;
-        this.emit();
-
-        connected.onDisconnected(() => {
-          board.state.connected = false;
-          board.device = null;
-          this.emit();
-        });
-
-        connected.monitorCharacteristicForService(NUS_SERVICE, NUS_TX, (err, char) => {
-          if (err || !char?.value) return;
-          this.onData(board, base64ToBytes(char.value));
-        });
+        await this.setupConnection(board, connected);
         return; // conectado con éxito
       } catch (e: any) {
         board.device = null;
@@ -195,6 +212,73 @@ class RemateBle {
         }
       }
     }
+  }
+
+  /**
+   * Bucle de reconexión: primero por identificador (rápido), y si no aparece,
+   * re-escaneo por nombre. Reintenta hasta ~2 minutos con espera creciente.
+   */
+  private async reconnectLoop(board: Board): Promise<void> {
+    if (board.reconnecting) return;
+    board.reconnecting = true;
+    try {
+      for (let attempt = 0; attempt < 30 && this.autoReconnect && !board.device; attempt++) {
+        // 1) Intento directo por id (la placa re-anuncia sola al desconectarse).
+        if (board.lastDeviceId) {
+          try {
+            const connected = await this.manager.connectToDevice(board.lastDeviceId, { requestMTU: 247, timeout: 4000 });
+            board.parser.reset(); // descarta bytes de una trama partida
+            await this.setupConnection(board, connected);
+            if (this.capturing) await this.send(board, CMD_START); // reanuda el stream
+            return;
+          } catch {
+            // sigue al escaneo
+          }
+        }
+        // 2) Escaneo corto por nombre.
+        const found = await this.scanFor(board.deviceName, 4000);
+        if (found && !board.device) {
+          try {
+            await this.connectBoard(board, found, 1);
+            if (board.device) {
+              board.parser.reset();
+              if (this.capturing) await this.send(board, CMD_START);
+              return;
+            }
+          } catch {
+            // reintenta en la siguiente vuelta
+          }
+        }
+        await new Promise((r) => setTimeout(r, Math.min(500 * (attempt + 1), 3000)));
+      }
+    } finally {
+      board.reconnecting = false;
+      this.emit();
+    }
+  }
+
+  /** Evita dos escaneos simultáneos (los bucles de ambas placas podrían coincidir). */
+  private scanBusy = false;
+
+  /** Escanea hasta encontrar un dispositivo con el nombre dado (o agotar el tiempo). */
+  private scanFor(name: string, timeoutMs: number): Promise<Device | null> {
+    if (this.scanBusy) return Promise.resolve(null);
+    this.scanBusy = true;
+    return new Promise((resolve) => {
+      let done = false;
+      const finish = (d: Device | null) => {
+        if (done) return;
+        done = true;
+        this.manager.stopDeviceScan();
+        this.scanBusy = false;
+        resolve(d);
+      };
+      this.manager.startDeviceScan([NUS_SERVICE], null, (err, device) => {
+        if (err) return finish(null);
+        if (device?.name === name) finish(device);
+      });
+      setTimeout(() => finish(null), timeoutMs);
+    });
   }
 
   private onData(board: Board, bytes: Uint8Array) {
@@ -261,9 +345,11 @@ class RemateBle {
   }
 
   disconnectAll() {
+    this.autoReconnect = false; // desconexión intencionada: no reconectar
     for (const b of [this.boards.ARM, this.boards.TORSO]) {
       b.device?.cancelConnection().catch(() => {});
       b.device = null;
+      b.lastDeviceId = null;
       b.state = emptyBoardState(b.sensor);
       b.parser.reset();
       b.samples = [];

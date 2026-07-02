@@ -150,6 +150,13 @@
 
   .banner{background:rgba(21,166,91,.10);border:1px solid rgba(21,166,91,.3);color:#0d7a44;
     border-radius:14px;padding:11px 14px;font-size:13px;font-weight:600;}
+  .cap-note{color:var(--faint);font-size:11.5px;line-height:1.45;margin-top:13px;padding-top:11px;border-top:1px solid var(--hair);position:relative;}
+  .comp-row{display:flex;gap:12px;margin-bottom:11px;}
+  .comp{flex:1;min-width:0;}
+  .comp-label{font-size:9.5px;color:var(--faint);text-transform:uppercase;letter-spacing:.3px;margin-bottom:4px;}
+  .comp-track{height:5px;border-radius:999px;background:var(--bg2);overflow:hidden;}
+  .comp-fill{height:5px;border-radius:999px;}
+  .comp-val{font-size:12px;font-weight:800;margin-top:3px;}
   .apex{margin-top:6px;}
   .apex-track{height:10px;border-radius:999px;background:var(--bg2);position:relative;}
   .apex-ideal{position:absolute;left:35%;width:30%;top:0;bottom:0;background:rgba(21,166,91,.25);border-radius:999px;}
@@ -208,10 +215,10 @@ const DEMO_PAYLOAD=(function(){
     tips:[{category:"Secuenciación",message:"Ningún remate sigue el orden tronco→brazo. Inicia el golpe desde la rotación del tronco y deja que el brazo lo siga.",severity:"bad"},
           {category:"Consistencia",message:"Tus picos varían un 44%. Repite la misma carrera y armado en cada remate.",severity:"warn"},
           {category:"Potencia",message:"Gran pico máximo (2719°/s), saturando el sensor en los remates fuertes.",severity:"good"}],
-    reps:[{index:0,armPeakDps:1550,armSaturated:false,armTimeToPeakMs:300,armShape:"intermedio",torsoPeakDps:347,lagMs:-5,sequencingOk:false},
-      {index:1,armPeakDps:895,armSaturated:false,armTimeToPeakMs:280,armShape:"empuje",torsoPeakDps:231,lagMs:-40,sequencingOk:false},
-      {index:2,armPeakDps:2484,armSaturated:true,armTimeToPeakMs:150,armShape:"latigazo",torsoPeakDps:311,lagMs:-80,sequencingOk:false},
-      {index:3,armPeakDps:2719,armSaturated:true,armTimeToPeakMs:140,armShape:"latigazo",torsoPeakDps:436,lagMs:195,sequencingOk:false}],
+    reps:[{index:0,timeMs:18000,armPeakDps:1550,armEstPeakDps:1550,armSaturated:false,armTimeToPeakMs:300,armShape:"intermedio",torsoPeakDps:347,lagMs:-5,sequencingOk:false,jumpHeightCm:31,flightTimeS:0.50,contactInFlightPct:38},
+      {index:1,timeMs:41000,armPeakDps:1495,armEstPeakDps:1495,armSaturated:false,armTimeToPeakMs:280,armShape:"empuje",torsoPeakDps:231,lagMs:-40,sequencingOk:false,jumpHeightCm:28,flightTimeS:0.48,contactInFlightPct:33},
+      {index:2,timeMs:66000,armPeakDps:2484,armEstPeakDps:2610,armSaturated:true,armTimeToPeakMs:150,armShape:"latigazo",torsoPeakDps:311,lagMs:-80,sequencingOk:false,jumpHeightCm:35,flightTimeS:0.53,contactInFlightPct:47},
+      {index:3,timeMs:92000,armPeakDps:2719,armEstPeakDps:2860,armSaturated:true,armTimeToPeakMs:140,armShape:"latigazo",torsoPeakDps:436,lagMs:55,sequencingOk:true,jumpHeightCm:37,flightTimeS:0.55,contactInFlightPct:51}],
     traces:{arm:{t,gyro:g,acc:ac,peaks:[28,60,95,125]},torso:{t,gyro:torsoG,acc:ac,peaks:[28,60,95,125]}}};
 })();
 const DEMO_ENTRY={id:"demo",name:"Demo",created_at:new Date(Date.now()-86400000).toISOString()};
@@ -269,15 +276,26 @@ async function openSession(id){
 }
 
 /* ---------- análisis en lenguaje claro ---------- */
+/* Veredictos ESTRICTOS (escala élite: los umbrales son de jugador profesional). */
 function verdict(kind,v){
   if(v==null||isNaN(v)) return {key:"na",label:"—",color:"var(--faint)"};
   let k;
-  if(kind==="quality") k = v>=72?"good":v>=48?"warn":"bad";
-  else if(kind==="seq") k = v>=60?"good":v>=30?"warn":"bad";
-  else if(kind==="cv")  k = v<=15?"good":v<=28?"warn":"bad";
-  else if(kind==="ttp") k = v<=120?"good":v<=180?"warn":"bad";
+  if(kind==="quality") k = v>=75?"good":v>=50?"warn":"bad";
+  else if(kind==="seq") k = v>=70?"good":v>=40?"warn":"bad";
+  else if(kind==="cv")  k = v<=8?"good":v<=18?"warn":"bad";
+  else if(kind==="ttp") k = v<=100?"good":v<=160?"warn":"bad";
+  else if(kind==="peak") k = v>=2600?"good":v>=1800?"warn":"bad";
   else k="warn";
-  return {good:{key:"good",label:"Bien",color:"var(--good)"},warn:{key:"warn",label:"Mejorable",color:"var(--warn)"},bad:{key:"bad",label:"A trabajar",color:"var(--bad)"}}[k];
+  const colors={good:"var(--good)",warn:"var(--warn)",bad:"var(--bad)"};
+  if(kind==="quality"){
+    const label=v>=90?"Élite":v>=75?"Alto nivel":v>=60?"Sólido":v>=45?"En construcción":"A trabajar";
+    return {key:k,label,color:colors[k]};
+  }
+  if(kind==="peak"){
+    return {key:k,label:k==="good"?"Nivel élite":k==="warn"?"Potente":"Mejorable",color:colors[k]};
+  }
+  const labels={good:"Bien",warn:"Mejorable",bad:"A trabajar"};
+  return {key:k,label:labels[k],color:colors[k]};
 }
 function chipStyle(c){return `color:${c};background:${c.replace('var(','rgba(').replace(')','')}`;} // fallback
 function tone(c){ // returns bg tint for a css var color (tema claro)
@@ -288,23 +306,102 @@ function tone(c){ // returns bg tint for a css var color (tema claro)
   return map[c]||"rgba(17,27,46,.06)";
 }
 
-function repNote(r){
-  const power = r.armPeakDps>=2000?"muy potente"+(r.armSaturated?" (saturó el sensor)":""):r.armPeakDps>=1200?"potente":"suave";
-  let seq;
-  if(r.lagMs==null) seq="no se detectó el tronco en este remate";
-  else if(r.lagMs>=10&&r.lagMs<=150) seq="buena secuencia: el tronco lideró y el brazo lo siguió ("+r.lagMs+" ms)";
-  else if(r.lagMs<10) seq="el brazo se adelantó al tronco ("+r.lagMs+" ms): pierdes potencia de la cadena";
-  else seq="el brazo tardó mucho tras el tronco (+"+r.lagMs+" ms): se rompe la conexión";
-  return `Remate ${power}. ${seq.charAt(0).toUpperCase()+seq.slice(1)}.`;
+/* ---------- modelo de calidad ÉLITE (mismas curvas que el motor core) ----------
+   100 = remate de jugador profesional. Componentes NO medidos capan la nota. */
+function piecewise(x,anchors){
+  if(x<=anchors[0][0]) return anchors[0][1];
+  for(let i=1;i<anchors.length;i++){
+    const [x1,y1]=anchors[i],[x0,y0]=anchors[i-1];
+    if(x<=x1) return y0+((x-x0)/(x1-x0))*(y1-y0);
+  }
+  return anchors[anchors.length-1][1];
+}
+const c01=v=>Math.max(0,Math.min(100,v));
+const scorePower=d=>c01(piecewise(d,[[500,0],[900,12],[1300,30],[1700,50],[2000,63],[2300,74],[2600,86],[2800,94],[3000,100]]));
+const scoreChainLag=l=>c01(piecewise(l,[[-100,0],[-30,0],[0,25],[10,50],[30,85],[40,100],[90,100],[130,70],[180,35],[250,0]]));
+const scoreTorsoMag=d=>c01(piecewise(d,[[0,0],[150,12],[300,38],[450,58],[600,78],[750,92],[900,100]]));
+const scoreExplosive=t=>c01(piecewise(t,[[60,100],[90,88],[120,70],[160,45],[220,20],[300,0]]));
+const scoreJumpTiming=p=>c01(piecewise(p,[[10,0],[25,35],[38,80],[45,97],[47,100],[53,100],[55,97],[62,80],[75,35],[90,0]]));
+const scoreConsistency=cv=>c01(piecewise(cv,[[4,100],[8,90],[12,75],[18,55],[25,35],[35,10],[45,0]]));
+const W={power:.35,chain:.30,explosive:.15,jumpTiming:.20};
+
+function scorePayloadRep(r){
+  if(r.score) return r.score; // sesiones nuevas ya traen la nota del motor
+  const est=r.armEstPeakDps??r.armPeakDps;
+  const power=scorePower(est);
+  const chain=(r.lagMs!=null&&r.torsoPeakDps!=null)?0.6*scoreChainLag(r.lagMs)+0.4*scoreTorsoMag(r.torsoPeakDps):null;
+  const explosive=(r.armTimeToPeakMs!=null&&isFinite(r.armTimeToPeakMs))?scoreExplosive(r.armTimeToPeakMs):null;
+  const jumpTiming=r.contactInFlightPct!=null?scoreJumpTiming(r.contactInFlightPct):null;
+  let raw=0,capMax=0,weakest=null,weakestScore=Infinity;
+  for(const [k,s] of [["power",power],["chain",chain],["explosive",explosive],["jumpTiming",jumpTiming]]){
+    if(s==null) continue;
+    raw+=W[k]*s; capMax+=W[k]*100;
+    if(s<weakestScore){weakestScore=s;weakest=k;}
+  }
+  const sc={total:Math.round(Math.min(raw,capMax)),capMax:Math.round(capMax),
+    power:Math.round(power),chain:chain!=null?Math.round(chain):null,
+    explosive:explosive!=null?Math.round(explosive):null,jumpTiming:jumpTiming!=null?Math.round(jumpTiming):null,
+    weakest,advice:""};
+  sc.advice=adviceFor(r,sc);
+  return sc;
 }
 
-function buildFocus(a, reps){
-  // elige el área de mejora prioritaria
-  const seqOk=a.sequencingOkPct, cv=a.armConsistencyCvPct;
-  if(seqOk<40) return {tag:"Foco principal",h:"Secuencia tronco → brazo",p:"Tu cadena cinética es lo que más margen tiene. En un buen remate el tronco gira primero y el brazo lo sigue como un látigo (10–150 ms después). Trabaja iniciar el golpe desde la rotación del tronco, no solo con el brazo."};
-  if(cv>28) return {tag:"Foco principal",h:"Consistencia del gesto",p:"Tus remates varían bastante entre sí. Busca repetir la misma mecánica: misma carrera, mismo armado y mismo punto de contacto. La regularidad es la base para luego subir potencia."};
-  if(a.armPeakMeanDps<1500) return {tag:"Foco principal",h:"Potencia y explosividad",p:"Hay margen para golpear más fuerte. Trabaja la velocidad del armado y el latigazo final de muñeca; la potencia nace de acelerar en el último tramo, no de empujar."};
-  return {tag:"Vas muy bien",h:"Mantén y pule",p:"Tu técnica es sólida. Sigue afinando la consistencia y la sincronización para subir el último escalón."};
+function adviceFor(r,s){
+  const missing=[];
+  if(s.chain==null) missing.push("tronco");
+  if(s.jumpTiming==null) missing.push("salto");
+  const parts=[];
+  switch(s.weakest){
+    case "power":
+      parts.push(`Pico de ${Math.round(r.armEstPeakDps??r.armPeakDps)} °/s: lejos del rango élite (≥2600). Trabaja el latigazo final de antebrazo y muñeca.`);
+      break;
+    case "chain":
+      if(r.lagMs!=null&&r.lagMs<10) parts.push(`El brazo llegó ${r.lagMs<=0?"antes que":"casi a la vez que"} el tronco (${Math.round(r.lagMs)} ms): golpeas "solo de brazo". Inicia la rotación del tronco antes.`);
+      else if(r.lagMs!=null&&r.lagMs>130) parts.push(`El brazo tardó ${Math.round(r.lagMs)} ms tras el tronco: la energía del giro se pierde. Encadena el brazo justo después.`);
+      else if((r.torsoPeakDps??0)<450) parts.push(`El tronco solo rotó a ${Math.round(r.torsoPeakDps??0)} °/s (élite: 600–900). Genera el golpe desde la cadera y el tronco.`);
+      else parts.push("Ajusta el encadenado tronco→brazo hacia un lag de 40–90 ms.");
+      break;
+    case "explosive":
+      parts.push(`Armado lento: ${Math.round(r.armTimeToPeakMs)} ms hasta el pico (élite <100). Gesto corto y explosivo, no empujar.`);
+      break;
+    case "jumpTiming":{
+      const p=r.contactInFlightPct;
+      parts.push(p<45?`Golpeas subiendo (${Math.round(p)} % del vuelo): retrasa el golpe hasta el punto más alto.`:`Golpeas cayendo (${Math.round(p)} % del vuelo): adelanta el armado para llegar arriba.`);
+      break;
+    }
+    default:
+      if(!missing.length) parts.push("Remate sólido en todos los componentes medidos.");
+  }
+  if(missing.length) parts.push(`Sin datos de ${missing.join(" y ")}: nota capada a ${s.capMax}.`);
+  return parts.join(" ");
+}
+
+function strictSession(reps){
+  if(!reps.length) return {index:0,capMax:0,repScores:[]};
+  const repScores=reps.map(scorePayloadRep);
+  const meanRep=avg(repScores.map(s=>s.total));
+  const capMax=avg(repScores.map(s=>s.capMax));
+  const peaks=reps.map(r=>r.armEstPeakDps??r.armPeakDps);
+  const m=avg(peaks);
+  const cv=m>0?stddev(peaks)/m*100:100;
+  const consistencyScore=reps.length>=3?scoreConsistency(cv):50;
+  return {index:Math.min(0.85*meanRep+0.15*consistencyScore,capMax),capMax,repScores};
+}
+
+function buildFocus(repScores){
+  const meanOf=k=>{const xs=repScores.map(s=>s[k]).filter(v=>v!=null);return xs.length?avg(xs):null;};
+  const entries=[
+    [{tag:"Foco principal",h:"Secuencia tronco → brazo",p:"Tu cadena cinética es lo que más margen tiene. El tronco debe girar primero y el brazo seguirlo como un látigo (40–90 ms después). Inicia el golpe desde la rotación de cadera y tronco, no desde el hombro."},meanOf("chain")],
+    [{tag:"Foco principal",h:"Explosividad del armado",p:"Tu gesto tarda demasiado en llegar al pico. Piensa en un armado corto y un latigazo final rápido: la potencia nace de acelerar el último tramo, no de empujar el balón."},meanOf("explosive")],
+    [{tag:"Foco principal",h:"Timing del salto",p:"No estás golpeando en el punto más alto del vuelo. Ajusta la batida y el armado para contactar el balón cerca del 50 % del salto, con el brazo extendido arriba."},meanOf("jumpTiming")],
+    [{tag:"Foco principal",h:"Potencia de brazo",p:"Hay margen de velocidad en la muñeca. Trabaja el latigazo final (antebrazo y muñeca) y la transferencia desde el tronco: la élite supera los 2600 °/s."},meanOf("power")],
+  ];
+  const measured=entries.filter(([,v])=>v!=null);
+  if(!measured.length) return {tag:"Datos incompletos",h:"Captura con ambos sensores",p:"No hay componentes suficientes medidos para priorizar. Asegura la conexión de ambos sensores y repite la serie."};
+  measured.sort((a,b)=>a[1]-b[1]);
+  const [focus,score]=measured[0];
+  if(score>=80) return {tag:"Nivel alto",h:"Pulir y consolidar",p:"Tus componentes medidos están a buen nivel. El siguiente salto es la consistencia: repetir este patrón bajo fatiga y en juego real."};
+  return focus;
 }
 
 /* ---------- reconsolidación de remates (corrige sobreconteo de datos antiguos) ----------
@@ -322,22 +419,6 @@ function consolidateReps(reps){
 const avg=a=>a.length?a.reduce((s,v)=>s+v,0)/a.length:0;
 const stddev=a=>{const m=avg(a);return a.length?Math.sqrt(avg(a.map(v=>(v-m)**2))):0;};
 const clamp=(v,lo,hi)=>Math.max(lo,Math.min(hi,v));
-function recompute(reps){
-  const pk=reps.map(r=>r.armPeakDps);
-  const best=Math.max(...pk), meanP=avg(pk), cv=meanP>0?stddev(pk)/meanP*100:0;
-  const paired=reps.filter(r=>r.lagMs!=null);
-  const okPct=paired.length?paired.filter(r=>r.sequencingOk).length/paired.length*100:0;
-  const meanLag=paired.length?avg(paired.map(r=>r.lagMs)):null;
-  const load=pk.reduce((s,p)=>s+p/1000,0);
-  const speedScore=clamp(meanP/2000*100,0,100), consScore=clamp(100-cv,0,100);
-  // Solo usamos la secuencia en la calidad si hay suficientes datos de tronco (≥2).
-  const useSeq=paired.length>=2;
-  const quality=useSeq?0.4*speedScore+0.3*okPct+0.3*consScore:0.6*speedScore+0.4*consScore;
-  const jh=reps.map(r=>r.jumpHeightCm).filter(x=>x!=null);
-  return {repCount:reps.length,armPeakBestDps:best,armPeakMeanDps:meanP,armConsistencyCvPct:cv,
-    sequencingOkPct:okPct,sequencingMeanLagMs:meanLag,load,qualityIndex:quality,
-    jumpBestCm:jh.length?Math.max(...jh):null,fatigueDropPct:null};
-}
 
 function jumpSection(p){
   const reps=p.reps;
@@ -376,29 +457,47 @@ function renderSession(name,p){
   if(!p||!p.aggregates||!p.reps||!p.traces){
     $("view").innerHTML='<div class="empty">Esta sesión no tiene datos completos para mostrar.<br>Sube una sesión real desde la app.</div>'; return;
   }
-  // Corrige sesiones antiguas con sobreconteo: si el filtro reduce mucho, recalcula.
+  // Corrige sesiones antiguas con sobreconteo.
   let fixNote="";
   const cons=consolidateReps(p.reps);
   if(cons.length>0 && cons.length < p.reps.length*0.6){
     fixNote=`Detección corregida: ${p.reps.length} → ${cons.length} remates reales (recalculado).`;
-    p={...p, reps:cons, aggregates:{...p.aggregates, ...recompute(cons)}};
+    p={...p, reps:cons};
   }
-  const a=p.aggregates;
-  const qv=verdict("quality",a.qualityIndex);
-  const seqv=verdict("seq",a.sequencingOkPct);
-  const cvv=verdict("cv",a.armConsistencyCvPct);
+  // Índice ESTRICTO (escala élite) recalculado siempre sobre los remates mostrados.
+  const strict=strictSession(p.reps);
+  const quality=strict.index, capMax=strict.capMax, repScores=strict.repScores;
+  const peaks=p.reps.map(r=>r.armEstPeakDps??r.armPeakDps);
+  const bestPeak=peaks.length?Math.max(...peaks):0;
+  const meanPeak=avg(peaks);
+  const mCv=meanPeak>0?stddev(peaks)/meanPeak*100:0;
+  const paired=p.reps.filter(r=>r.lagMs!=null);
+  const seqOkPct=paired.length?paired.filter(r=>r.sequencingOk).length/paired.length*100:0;
+  const meanLag=paired.length?avg(paired.map(r=>r.lagMs)):null;
+
+  const qv=verdict("quality",quality);
+  const peakv=verdict("peak",bestPeak);
+  const seqv=verdict("seq",seqOkPct);
+  const cvv=verdict("cv",mCv);
   const ttp = avgTtp(p);
   const ttpv=verdict("ttp",ttp);
   const sat = p.reps.filter(r=>r.armSaturated).length;
-  const seqN = p.reps.filter(r=>r.lagMs!=null).length; // remates con dato de tronco
-  const focus=buildFocus(a,p.reps);
-  const qVerdictText = a.qualityIndex>=72?"Gran sesión, técnica sólida.":a.qualityIndex>=48?"Buena base, con margen claro de mejora.":"Sesión para construir técnica desde la base.";
+  const seqN = paired.length; // remates con dato de tronco
+  const focus=buildFocus(repScores);
+  const qVerdictText = quality>=90?"Nivel élite en lo medido. Excepcional."
+    :quality>=75?"Remate de alto nivel. Pule los detalles."
+    :quality>=60?"Base sólida con margen claro en componentes concretos."
+    :quality>=45?"En construcción: hay déficits técnicos medibles que corregir."
+    :"Lejos aún del patrón objetivo. Trabaja los focos indicados.";
+  const capNote = capMax<99
+    ? `Índice capado a ${Math.round(capMax)}: hay componentes sin medir (tronco o salto). Escala élite: 100 = remate profesional.`
+    : "Escala élite: 100 = remate de jugador profesional en todos los componentes.";
 
   $("view").innerHTML=`
     <div class="hero">
       <div class="glow"></div>
       <div class="hero-row">
-        ${ringSVG(a.qualityIndex,100,86,qv.color,Math.round(a.qualityIndex),"Calidad")}
+        ${ringSVG(quality,100,86,qv.color,Math.round(quality),"Calidad")}
         <div style="flex:1;min-width:0">
           <span class="verdict-tag" style="color:${qv.color};background:${tone(qv.color)}">${qv.label}</span>
           <h2>${escapeHtml(name)}</h2>
@@ -406,11 +505,12 @@ function renderSession(name,p){
         </div>
       </div>
       <div class="hero-meta">
-        <span class="meta-chip"><b>${a.repCount}</b> remates</span>
+        <span class="meta-chip"><b>${p.reps.length}</b> remates</span>
         <span class="meta-chip">📅 ${new Date(p.startedAtMs).toLocaleDateString()}</span>
-        <span class="meta-chip">⚡ pico <b class="num">${Math.round(a.armPeakBestDps)}</b>°/s</span>
+        <span class="meta-chip">⚡ pico <b class="num">${Math.round(bestPeak)}</b>°/s${sat?' est.':''}</span>
         ${sat?`<span class="meta-chip" style="color:var(--warn)">▲ ${sat} ${sat>1?'saturaron':'saturó'}</span>`:''}
       </div>
+      <div class="cap-note">${capNote}</div>
     </div>
 
     ${fixNote?`<div class="banner">✓ ${fixNote}</div>`:''}
@@ -423,28 +523,28 @@ function renderSession(name,p){
 
     ${jumpSection(p)}
 
-    <div class="sec"><h3>Tus métricas</h3><span class="hint">toca para entender cada una</span></div>
+    <div class="sec"><h3>Tus métricas</h3><span class="hint">escala élite: 100 = profesional</span></div>
     <div class="grid">
-      ${metricCard({label:"Potencia de brazo",val:Math.round(a.armPeakBestDps),unit:"°/s",mean:"media "+Math.round(a.armPeakMeanDps)+"°/s",
-        v:{key:a.armPeakBestDps>=2000?"good":a.armPeakBestDps>=1300?"warn":"bad",label:a.armPeakBestDps>=2000?"Potente":a.armPeakBestDps>=1300?"Correcto":"Suave",color:a.armPeakBestDps>=2000?"var(--good)":a.armPeakBestDps>=1300?"var(--warn)":"var(--bad)"},
-        explain:"Velocidad de giro de la muñeca en el golpe. A más alto, más potencia."+(sat?" <b>Algunos remates saturaron el sensor (≥2000°/s)</b>: tu pico real es aún mayor.":""),
-        range:{min:500,max:2200,a:1300,b:2200,val:a.armPeakBestDps,zoneColor:"var(--good)"}})}
+      ${metricCard({label:"Potencia de brazo",val:Math.round(bestPeak),unit:"°/s",mean:"media "+Math.round(meanPeak)+"°/s"+(sat?" (est., saturó)":""),
+        v:peakv,
+        explain:"Velocidad de giro de la muñeca en el golpe. <b>Élite: 2600–3000 °/s.</b>"+(sat?" Los picos saturados se extrapolan por la forma del recorte.":""),
+        range:{min:500,max:3000,a:2300,b:3000,val:bestPeak,zoneColor:"var(--good)"}})}
 
       ${seqN>=2
-        ? metricCard({label:"Secuencia tronco→brazo",val:Math.round(a.sequencingOkPct),unit:"%",mean:"lag medio "+(a.sequencingMeanLagMs!=null?Math.round(a.sequencingMeanLagMs):"—")+" ms",
-            v:seqv, explain:"Qué % de remates siguen el orden correcto: <b>el tronco gira y el brazo lo sigue como un látigo</b>. Es la clave de la potencia eficiente.",
-            range:{min:0,max:100,a:60,b:100,val:a.sequencingOkPct,zoneColor:"var(--good)"}})
+        ? metricCard({label:"Secuencia tronco→brazo",val:Math.round(seqOkPct),unit:"%",mean:"lag medio "+(meanLag!=null?Math.round(meanLag):"—")+" ms",
+            v:seqv, explain:"Qué % de remates siguen el orden correcto: <b>el tronco gira y el brazo lo sigue como un látigo</b> (ideal 40–90 ms después).",
+            range:{min:0,max:100,a:60,b:100,val:seqOkPct,zoneColor:"var(--good)"}})
         : metricCard({label:"Secuencia tronco→brazo",val:"—",unit:"",mean:"datos de tronco insuficientes",
-            v:{key:"na",label:"Recaptura",color:"var(--faint)"}, explain:"Esta sesión (antigua) no tiene suficientes datos de tronco emparejados. Captura una serie nueva con la app actualizada para medir la secuencia cinética.",
+            v:{key:"na",label:"Recaptura",color:"var(--faint)"}, explain:"Esta sesión no tiene suficientes datos de tronco emparejados. Captura una serie nueva con ambos sensores conectados para medir la cadena cinética.",
             range:{min:0,max:100,a:60,b:100,val:0,zoneColor:"var(--faint)"}})}
 
-      ${metricCard({label:"Consistencia",val:Math.round(a.armConsistencyCvPct),unit:"%",mean:"variación entre remates",
-        v:cvv, explain:"Cuánto varían tus remates entre sí (CV). <b>Más bajo = más regular</b>. La regularidad es la base para mejorar.",
-        range:{min:0,max:50,a:0,b:15,val:a.armConsistencyCvPct,zoneColor:"var(--good)",invert:true}})}
+      ${metricCard({label:"Consistencia",val:Math.round(mCv),unit:"%",mean:"variación entre remates",
+        v:cvv, explain:"Cuánto varían tus picos entre remates (CV). <b>Élite: ≤8 %</b>. La regularidad es la base para mejorar.",
+        range:{min:0,max:50,a:0,b:8,val:mCv,zoneColor:"var(--good)",invert:true}})}
 
       ${metricCard({label:"Explosividad",val:Math.round(ttp),unit:"ms",mean:"tiempo hasta el pico",
-        v:ttpv, explain:"Cuánto tardas en alcanzar la máxima velocidad. <b>Menos ms = gesto más explosivo</b>, tipo látigo.",
-        range:{min:50,max:260,a:50,b:120,val:ttp,zoneColor:"var(--good)",invert:true}})}
+        v:ttpv, explain:"Cuánto tardas en alcanzar la máxima velocidad. <b>Élite: <100 ms</b>. Gesto tipo látigo, no empuje.",
+        range:{min:50,max:300,a:50,b:100,val:ttp,zoneColor:"var(--good)",invert:true}})}
     </div>
 
     <div class="sec"><h3>Velocidad angular del gesto</h3></div>
@@ -460,10 +560,10 @@ function renderSession(name,p){
 
     ${renderKineticChain(p)}
 
-    <div class="sec"><h3>Remate a remate</h3><span class="hint">análisis individual</span></div>
-    ${p.reps.map(r=>renderRep(r)).join("")}
+    <div class="sec"><h3>Remate a remate</h3><span class="hint">nota y consejo de cada uno</span></div>
+    ${p.reps.map((r,i)=>renderRep(r,repScores[i])).join("")}
 
-    <div class="sec"><h3>Consejos</h3></div>
+    ${!fixNote && p.tips && p.tips.length ? `<div class="sec"><h3>Consejos</h3></div>
     <div class="card">
       ${p.tips.map(t=>{
         const ic=t.severity==="good"?"✅":t.severity==="warn"?"⚠️":"🎯";
@@ -471,7 +571,7 @@ function renderSession(name,p){
         return `<div class="tip"><div class="tip-ic" style="background:${tone(col)};">${ic}</div>
           <div><div class="tip-cat">${escapeHtml(t.category)}</div><div class="tip-msg">${escapeHtml(t.message)}</div></div></div>`;
       }).join("")}
-    </div>
+    </div>` : ''}
   `;
   drawChart(p.traces);
 }
@@ -536,23 +636,40 @@ function renderKineticChain(p){
   </div>`;
 }
 
-function renderRep(r){
-  const c=r.armPeakDps>=2000?"var(--good)":r.armPeakDps>=1200?"var(--warn)":"var(--faint)";
+function renderRep(r,score){
+  const s=score||scorePayloadRep(r);
+  const sv=verdict("quality",s.total);
+  const est=Math.round(r.armEstPeakDps??r.armPeakDps);
+  const compBar=(label,val)=>{
+    const c=val==null?"var(--faint)":val>=75?"var(--good)":val>=50?"var(--warn)":"var(--bad)";
+    return `<div class="comp">
+      <div class="comp-label">${label}</div>
+      <div class="comp-track"><div class="comp-fill" style="width:${val??0}%;background:${c}"></div></div>
+      <div class="comp-val num" style="color:${c}">${val!=null?val:'—'}</div>
+    </div>`;
+  };
   return `<div class="rep">
     <div class="rep-head">
-      <div class="rep-no">${r.index+1}</div>
+      ${ringSVG(s.total,100,46,sv.color,s.total,"")}
       <div style="flex:1">
         <div class="rep-title">Remate ${r.index+1}</div>
-        <div class="rep-sub">${r.armShape?cap(r.armShape):'gesto'} · ${r.armSaturated?'pico saturado':'pico medido'}</div>
+        <div class="rep-sub">${r.armShape?cap(r.armShape):'gesto'} · ${r.armSaturated?`pico est. ${est}°/s`:`pico ${Math.round(r.armPeakDps)}°/s`}${s.capMax<99?` · nota máx. ${s.capMax}`:''}</div>
       </div>
     </div>
-    <div class="rep-stats">
-      <div class="rstat"><div class="rk">Brazo</div><div class="rv num" style="color:${c}">${Math.round(r.armPeakDps)}${r.armSaturated?'▲':''}</div></div>
-      <div class="rstat"><div class="rk">Tronco</div><div class="rv num">${r.torsoPeakDps??'—'}</div></div>
-      <div class="rstat"><div class="rk">Lag</div><div class="rv num">${r.lagMs!=null?(r.lagMs>0?'+':'')+r.lagMs:'—'}</div></div>
-      ${r.jumpHeightCm!=null?`<div class="rstat"><div class="rk">Salto</div><div class="rv num">${r.jumpHeightCm}cm</div></div>`:''}
+    <div class="comp-row">
+      ${compBar("Potencia",s.power)}
+      ${compBar("Cadena",s.chain)}
+      ${compBar("Explosiv.",s.explosive)}
+      ${compBar("Salto",s.jumpTiming)}
     </div>
-    <div class="rep-note">${repNote(r)}</div>
+    <div class="rep-stats">
+      <div class="rstat"><div class="rk">Tronco</div><div class="rv num">${r.torsoPeakDps!=null?r.torsoPeakDps+'°/s':'—'}</div></div>
+      <div class="rstat"><div class="rk">Lag</div><div class="rv num">${r.lagMs!=null?(r.lagMs>0?'+':'')+r.lagMs+'ms':'—'}</div></div>
+      <div class="rstat"><div class="rk">Armado</div><div class="rv num">${r.armTimeToPeakMs!=null&&isFinite(r.armTimeToPeakMs)?Math.round(r.armTimeToPeakMs)+'ms':'—'}</div></div>
+      ${r.jumpHeightCm!=null?`<div class="rstat"><div class="rk">Salto</div><div class="rv num">${r.jumpHeightCm}cm</div></div>`:''}
+      ${r.contactInFlightPct!=null?`<div class="rstat"><div class="rk">Golpe en</div><div class="rv num">${r.contactInFlightPct}%</div></div>`:''}
+    </div>
+    <div class="rep-note">${escapeHtml(s.advice)}</div>
   </div>`;
 }
 
@@ -606,14 +723,16 @@ function drawChart(traces){
 
 /* ---------- ring SVG ---------- */
 function ringSVG(val,max,size,color,centerBig,centerSmall){
-  const r=(size-12)/2, c=2*Math.PI*r, off=c*(1-Math.max(0,Math.min(1,val/max)));
-  return `<div class="ring" style="width:${size}px;height:${size}px">
+  const sw=Math.max(4,Math.round(size*0.105));
+  const r=(size-sw-2)/2, c=2*Math.PI*r, off=c*(1-Math.max(0,Math.min(1,val/max)));
+  const fs=Math.round(size*0.33);
+  return `<div class="ring" style="width:${size}px;height:${size}px;flex:0 0 auto">
     <svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(17,27,46,.09)" stroke-width="9"/>
-      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="9" stroke-linecap="round"
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="rgba(17,27,46,.09)" stroke-width="${sw}"/>
+      <circle cx="${size/2}" cy="${size/2}" r="${r}" fill="none" stroke="${color}" stroke-width="${sw}" stroke-linecap="round"
         stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 ${size/2} ${size/2})"/>
     </svg>
-    <div class="center"><div><div class="big num">${centerBig}</div><div class="small">${centerSmall}</div></div></div>
+    <div class="center"><div><div class="big num" style="font-size:${fs}px">${centerBig}</div>${centerSmall?`<div class="small">${centerSmall}</div>`:''}</div></div>
   </div>`;
 }
 

@@ -49,7 +49,7 @@ export function generateTips(aggregates: SessionAggregates, reps: Rep[]): Coachi
       category: "consistencia",
       message: `Tus picos de brazo varían bastante (CV ${aggregates.armConsistencyCvPct.toFixed(0)} %). Busca repetir la misma mecánica en cada remate.`,
     });
-  } else if (aggregates.armConsistencyCvPct < 10) {
+  } else if (aggregates.armConsistencyCvPct < 8 && aggregates.repCount >= 3) {
     tips.push({
       severity: "good",
       category: "consistencia",
@@ -57,17 +57,44 @@ export function generateTips(aggregates: SessionAggregates, reps: Rep[]): Coachi
     });
   }
 
-  // Explosividad (tiempo al pico).
+  // Explosividad (tiempo al pico). Élite < 100 ms.
   const ttp = reps.map((r) => r.arm.timeToPeakMs).filter((x) => Number.isFinite(x));
   if (ttp.length) {
     const meanTtp = mean(ttp);
-    if (meanTtp > 180) {
+    if (meanTtp > 140) {
       tips.push({
         severity: "warn",
         category: "explosividad",
-        message: `El gesto tarda de media ${meanTtp.toFixed(0)} ms en alcanzar el pico. Trabaja la explosividad para acortar ese tiempo.`,
+        message: `El gesto tarda de media ${meanTtp.toFixed(0)} ms en alcanzar el pico (élite: <100 ms). Piensa en un armado corto y explosivo, no en empujar.`,
       });
     }
+  }
+
+  // Timing del golpe dentro del salto.
+  if (aggregates.contactInFlightMeanPct != null) {
+    const t = aggregates.contactInFlightMeanPct;
+    if (t < 40) {
+      tips.push({
+        severity: "warn",
+        category: "salto",
+        message: `Golpeas de media al ${t.toFixed(0)} % del vuelo (subiendo). Retrasa el golpe para contactar en el punto más alto (~50 %).`,
+      });
+    } else if (t > 60) {
+      tips.push({
+        severity: "warn",
+        category: "salto",
+        message: `Golpeas de media al ${t.toFixed(0)} % del vuelo (cayendo). Adelanta el armado para llegar al balón en el punto más alto (~50 %).`,
+      });
+    }
+  }
+
+  // Datos incompletos: el índice queda capado.
+  if (aggregates.qualityCapMax < 99 && aggregates.repCount > 0) {
+    tips.push({
+      severity: "info",
+      category: "tecnica",
+      message: `Faltan componentes por medir (tronco o salto) en parte de los remates: el índice de calidad queda capado a ${aggregates.qualityCapMax.toFixed(0)}. Revisa la conexión de ambos sensores.`,
+    });
   }
 
   // Fatiga.

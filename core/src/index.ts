@@ -25,6 +25,11 @@ export { detectContact } from "./metrics/contact.js";
 export { detectJump } from "./metrics/jump.js";
 export { buildReps } from "./metrics/sequencing.js";
 export { computeAggregates } from "./metrics/session.js";
+export {
+  scoreRep, scoreSession, scorePower, scoreChainLag, scoreTorsoMag,
+  scoreExplosive, scoreJumpTiming, scoreConsistency, QUALITY_WEIGHTS,
+} from "./metrics/quality.js";
+export type { SessionQuality } from "./metrics/quality.js";
 
 // Coaching e histórico
 export { generateTips } from "./coaching.js";
